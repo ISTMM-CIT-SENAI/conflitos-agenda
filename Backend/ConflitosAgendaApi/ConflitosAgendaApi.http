@@ -1,0 +1,6 @@
+@ConflitosAgendaApi_HostAddress = http://localhost:5165
+
+GET {{ConflitosAgendaApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

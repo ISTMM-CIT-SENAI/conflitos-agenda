@@ -1,0 +1,19 @@
+# .NET build output
+**/bin/
+**/obj/
+
+# Visual Studio and VS Code user files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test results
+TestResults/
+*.trx
+
+# Banco SQLite local
+*.db
+*.db-shm
+*.db-wal

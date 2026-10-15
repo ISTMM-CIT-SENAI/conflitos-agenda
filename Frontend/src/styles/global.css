@@ -1,0 +1,21 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+/* Integração do FullCalendar com as cores do tema MUI. */
+.calendario-ausencias {
+  --fc-border-color: #e3e8ef;
+  --fc-today-bg-color: rgba(29, 79, 145, 0.06);
+  font-size: 0.875rem;
+}
+
+.calendario-ausencias .evento-conflito {
+  outline: 2px dashed #c62828;
+  outline-offset: 1px;
+}
+
+.calendario-ausencias .fc-event {
+  cursor: pointer;
+}
