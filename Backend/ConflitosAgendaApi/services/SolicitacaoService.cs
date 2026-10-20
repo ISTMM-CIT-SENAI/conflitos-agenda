@@ -85,6 +85,7 @@ public class SolicitacaoService : ISolicitacaoService
             dto.TotalDias);
 
         ValidarRegras(solicitacao);
+        ValidarCoordenador(solicitacao);
 
         await _solicitacaoRepository.AddAsync(solicitacao);
 
@@ -93,7 +94,8 @@ public class SolicitacaoService : ISolicitacaoService
 
     public async Task<Solicitacao?> UpdateAsync(
         int id,
-        SolicitacaoUpdateDto dto)
+        SolicitacaoUpdateDto dto,
+        Usuario? decisor = null)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
@@ -108,6 +110,12 @@ public class SolicitacaoService : ISolicitacaoService
         {
             throw new ArgumentException(
                 "A solicitação deve conter pelo menos um período.");
+        }
+
+        if (solicitacao.EstaDecidida)
+        {
+            throw new ArgumentException(
+                "Solicitações aprovadas ou recusadas não podem ser alteradas.");
         }
 
         var periodos = await _periodoRepository.ObterPeriodosAsync(dto.Periodos);
@@ -130,6 +138,13 @@ public class SolicitacaoService : ISolicitacaoService
             dto.isPessoaCritica);
 
         ValidarRegras(solicitacao);
+        ValidarCoordenador(solicitacao);
+
+        // Aprovar ou recusar registra a Decisão: quem decidiu e quando.
+        if (solicitacao.EstaDecidida && decisor is not null)
+        {
+            solicitacao.RegistrarDecisao(decisor, DateTimeOffset.UtcNow);
+        }
 
         await _solicitacaoRepository.UpdateAsync(solicitacao);
 
@@ -162,6 +177,21 @@ public class SolicitacaoService : ISolicitacaoService
 
         return !await _conflitoSolicitacaoService.PossuiConflitoAsync(solicitacao);
 
+    }
+
+    /// <summary>O Coordenador escolhido precisa ser coordenador e não pode ser o próprio solicitante.</summary>
+    private static void ValidarCoordenador(Solicitacao solicitacao)
+    {
+        if (!solicitacao.Coordenador.IsCoordenador)
+        {
+            throw new ArgumentException(
+                $"{solicitacao.Coordenador.Nome} não é coordenador.");
+        }
+        if (solicitacao.Coordenador.Id == solicitacao.Colaborador.Id)
+        {
+            throw new ArgumentException(
+                "O coordenador não pode analisar a própria solicitação.");
+        }
     }
 
     private static void ValidarRegras(

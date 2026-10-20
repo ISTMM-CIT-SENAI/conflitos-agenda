@@ -29,7 +29,9 @@ import { CampoData } from '@/components/forms/CampoData';
 import { SeletorColaborador } from '@/components/forms/SeletorColaborador';
 import { TabelaDados } from '@/components/tables/TabelaDados';
 import type { Solicitacao } from '@/domain/entities';
-import { ROTULO_STATUS, TODOS_STATUS, isStatusSolicitacao, podeEditar } from '@/domain/enums/statusSolicitacao';
+import { ROTULO_STATUS, TODOS_STATUS, isStatusSolicitacao } from '@/domain/enums/statusSolicitacao';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { ehAdministrador, podeEditarSolicitacao, podeExcluirSolicitacao } from '@/domain/acesso';
 import { intervaloDoPeriodo, seSobrepoem } from '@/domain/validation/periodo';
 import { violacoesDaSolicitacao } from '@/domain/validation/solicitacao';
 import { useColaboradores, useMutacao, useSolicitacoes } from '@/hooks/useDados';
@@ -52,6 +54,7 @@ function correspondeBusca(s: Solicitacao, busca: string): boolean {
 
 export function SolicitacoesPage() {
   const servicos = useServicos();
+  const usuario = useUsuarioLogado();
   const navigate = useNavigate();
   const { search } = useLocation();
   const filtros = useFiltrosUrl<ChaveFiltro>();
@@ -154,11 +157,17 @@ export function SolicitacoesPage() {
         <GridActionsCellItem
           key="editar"
           icon={<EditOutlinedIcon />}
-          label={podeEditar(row.status) ? 'Editar' : 'Solicitações decididas não podem ser editadas'}
-          disabled={!podeEditar(row.status)}
+          label={podeEditarSolicitacao(usuario, row) ? 'Editar' : 'Você não pode editar esta solicitação'}
+          disabled={!podeEditarSolicitacao(usuario, row)}
           onClick={() => navigate(`/solicitacoes/${row.id}/editar`)}
         />,
-        <GridActionsCellItem key="excluir" icon={<DeleteOutlinedIcon />} label="Excluir" onClick={() => setExcluindo(row)} />,
+        <GridActionsCellItem
+          key="excluir"
+          icon={<DeleteOutlinedIcon />}
+          label={podeExcluirSolicitacao(usuario, row) ? 'Excluir' : 'Você não pode excluir esta solicitação'}
+          disabled={!podeExcluirSolicitacao(usuario, row)}
+          onClick={() => setExcluindo(row)}
+        />,
       ],
     },
   ];
@@ -211,6 +220,7 @@ export function SolicitacoesPage() {
               ))}
             </TextField>
           </Grid>
+          {(ehAdministrador(usuario) || usuario.colaborador.isCoordenador) && (
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <SeletorColaborador
               rotulo="Colaborador"
@@ -220,6 +230,7 @@ export function SolicitacoesPage() {
               onChange={(id) => filtros.definir('colaborador', id)}
             />
           </Grid>
+          )}
           <Grid size={{ xs: 6, lg: 'grow' }}>
             <CampoData rotulo="Ausente de" valor={de} onChange={(v) => filtros.definir('de', v)} />
           </Grid>

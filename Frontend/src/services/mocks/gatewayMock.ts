@@ -1,34 +1,63 @@
-import type { Colaborador, Periodo, Projeto, Solicitacao } from '@/domain/entities';
-import { isStatusSolicitacao } from '@/domain/enums/statusSolicitacao';
+import {
+  ehAdministrador,
+  podeDecidir,
+  podeExcluirSolicitacao,
+  podeGerenciarPeriodo,
+  podeValidarConflito,
+  podeVerSolicitacao,
+  validarNomeUsuario,
+  validarSenha,
+} from '@/domain/acesso';
+import type { Colaborador, ContaUsuario, Periodo, Projeto, Solicitacao, UsuarioLogado } from '@/domain/entities';
+import { StatusSolicitacao, isStatusFinal, isStatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 import { detectarConflitos, mensagemDeConflito } from '@/domain/validation/conflito';
 import { intervaloDoPeriodo, validarIntervalo } from '@/domain/validation/periodo';
 import { validarRegrasSolicitacao } from '@/domain/validation/solicitacao';
-import type { ApiGateway, ColaboradorDto, PeriodoDto } from '../contracts/api';
-import { ErroNaoEncontrado, ErroRegraNegocio } from '../erros';
+import type { ApiGateway, ColaboradorDto, PeriodoDto, SolicitacaoDto } from '../contracts/api';
+import {
+  ErroAcessoNegado,
+  ErroNaoAutenticado,
+  ErroNaoEncontrado,
+  ErroRegraNegocio,
+  ErroTrocaSenhaObrigatoria,
+} from '../erros';
 import {
   VERSAO_BANCO,
+  hashSenhaDemonstracao,
   proximoId,
   type Armazenamento,
   type BancoMock,
   type ColaboradorRegistro,
   type ProjetoRegistro,
   type SolicitacaoRegistro,
+  type UsuarioRegistro,
 } from './banco';
 import { criarDadosDemonstracao } from './dadosDemonstracao';
 
 export const CHAVE_ARMAZENAMENTO = 'conflitos-agenda:banco-mock';
+export const CHAVE_SESSAO = 'conflitos-agenda:sessao-mock';
 
-const PADRAO_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Mesmas regras da API: sessão de 8 horas, bloqueio de 15 minutos após 5 erros. */
+const DURACAO_SESSAO_MS = 8 * 60 * 60 * 1000;
+const MAXIMO_TENTATIVAS = 5;
+const DURACAO_BLOQUEIO_MS = 15 * 60 * 1000;
+const MENSAGEM_CREDENCIAIS_INVALIDAS = 'Usuário ou senha inválidos.';
 
 export interface OpcoesGatewayMock {
   armazenamento: Armazenamento;
   /** Latência simulada por operação, para exercitar os estados de carregamento. */
   latenciaMs?: number;
   criarDadosIniciais?: () => BancoMock;
+  agora?: () => Date;
 }
 
 export interface GatewayMock extends ApiGateway {
   restaurarDadosDemonstracao(): Promise<void>;
+}
+
+interface Sessao {
+  usuarioId: number;
+  expiraEm: number;
 }
 
 function isBancoValido(valor: unknown): valor is BancoMock {
@@ -37,21 +66,25 @@ function isBancoValido(valor: unknown): valor is BancoMock {
   return (
     banco.versao === VERSAO_BANCO &&
     Array.isArray(banco.colaboradores) &&
+    Array.isArray(banco.usuarios) &&
     Array.isArray(banco.periodos) &&
     Array.isArray(banco.projetos) &&
     Array.isArray(banco.solicitacoes)
   );
 }
 
+const normalizar = (texto: string) => texto.trim().toLocaleLowerCase('pt-BR');
+
 /**
- * Implementação do `ApiGateway` persistida em `localStorage`. Reproduz as
- * respostas e validações da API (400/404) para que as telas se comportem
+ * Implementação do `ApiGateway` persistida em `localStorage`. Reproduz as respostas,
+ * validações e permissões da API (400/401/403/404) para que as telas se comportem
  * igual quando a fonte de dados for trocada.
  */
 export function criarGatewayMock({
   armazenamento,
   latenciaMs = 0,
   criarDadosIniciais = criarDadosDemonstracao,
+  agora = () => new Date(),
 }: OpcoesGatewayMock): GatewayMock {
   function ler(): BancoMock {
     const bruto = armazenamento.getItem(CHAVE_ARMAZENAMENTO);
@@ -65,6 +98,7 @@ export function criarGatewayMock({
     }
     const inicial = criarDadosIniciais();
     gravar(inicial);
+    armazenamento.removeItem(CHAVE_SESSAO);
     return inicial;
   }
 
@@ -72,19 +106,89 @@ export function criarGatewayMock({
     armazenamento.setItem(CHAVE_ARMAZENAMENTO, JSON.stringify(banco));
   }
 
-  /** Executa uma operação após a latência simulada; o retorno é sempre uma cópia. */
-  async function operar<T>(operacao: (banco: BancoMock) => T): Promise<T> {
+  async function esperar(): Promise<void> {
     if (latenciaMs > 0) await new Promise((resolve) => setTimeout(resolve, latenciaMs));
-    const resultado = operacao(ler());
+  }
+
+  // --- Sessão ---
+
+  function lerSessao(): Sessao | null {
+    try {
+      const sessao = JSON.parse(armazenamento.getItem(CHAVE_SESSAO) ?? 'null') as Sessao | null;
+      return sessao && sessao.expiraEm > agora().getTime() ? sessao : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function iniciarSessao(usuarioId: number): void {
+    const sessao: Sessao = { usuarioId, expiraEm: agora().getTime() + DURACAO_SESSAO_MS };
+    armazenamento.setItem(CHAVE_SESSAO, JSON.stringify(sessao));
+  }
+
+  function usuarioDaSessao(banco: BancoMock): UsuarioRegistro | null {
+    const sessao = lerSessao();
+    const usuario = sessao ? banco.usuarios.find((u) => u.id === sessao.usuarioId) : undefined;
+    if (!usuario || !usuario.ativo) return null;
+    // Renova a expiração a cada uso (sessão expira após 8 horas sem uso).
+    iniciarSessao(usuario.id);
+    return usuario;
+  }
+
+  function usuarioLogado(banco: BancoMock, usuario: UsuarioRegistro): UsuarioLogado {
+    const colaborador = banco.colaboradores.find((c) => c.id === usuario.colaboradorId);
+    return {
+      id: usuario.id,
+      nomeUsuario: usuario.nomeUsuario,
+      nivel: usuario.isAdministrador ? 'administrador' : colaborador?.isCoordenador ? 'coordenador' : 'colaborador',
+      precisaTrocarSenha: usuario.precisaTrocarSenha,
+      colaborador: {
+        id: usuario.colaboradorId,
+        nome: colaborador?.nome ?? `Colaborador #${usuario.colaboradorId}`,
+        isCoordenador: colaborador?.isCoordenador ?? false,
+      },
+    };
+  }
+
+  function contaUsuario(banco: BancoMock, usuario: UsuarioRegistro): ContaUsuario {
+    const logado = usuarioLogado(banco, usuario);
+    return {
+      id: usuario.id,
+      nomeUsuario: usuario.nomeUsuario,
+      nivel: logado.nivel,
+      isAdministrador: usuario.isAdministrador,
+      ativo: usuario.ativo,
+      precisaTrocarSenha: usuario.precisaTrocarSenha,
+      bloqueado: estaBloqueado(usuario),
+      colaborador: logado.colaborador,
+    };
+  }
+
+  function estaBloqueado(usuario: UsuarioRegistro): boolean {
+    return usuario.bloqueadoAte !== null && new Date(usuario.bloqueadoAte).getTime() > agora().getTime();
+  }
+
+  /** Operação que exige sessão válida e senha já definida, como na API. */
+  async function operar<T>(
+    operacao: (banco: BancoMock, usuario: UsuarioLogado) => T,
+    { gravarAoFinal = false } = {},
+  ): Promise<T> {
+    await esperar();
+    const banco = ler();
+    const registro = usuarioDaSessao(banco);
+    if (!registro) throw new ErroNaoAutenticado();
+    if (registro.precisaTrocarSenha) throw new ErroTrocaSenhaObrigatoria();
+
+    const resultado = operacao(banco, usuarioLogado(banco, registro));
+    if (gravarAoFinal) gravar(banco);
     return resultado === undefined ? resultado : structuredClone(resultado);
   }
 
-  async function mutar<T>(operacao: (banco: BancoMock) => T): Promise<T> {
-    return operar((banco) => {
-      const resultado = operacao(banco);
-      gravar(banco);
-      return resultado;
-    });
+  const mutar = <T>(operacao: (banco: BancoMock, usuario: UsuarioLogado) => T) =>
+    operar(operacao, { gravarAoFinal: true });
+
+  function exigirAdministrador(usuario: UsuarioLogado): void {
+    if (!ehAdministrador(usuario)) throw new ErroAcessoNegado();
   }
 
   function encontrar<T extends { id: number }>(lista: T[], id: number, mensagem: string): T {
@@ -97,7 +201,7 @@ export function criarGatewayMock({
 
   function colaborador(banco: BancoMock, id: number): Colaborador {
     const registro = banco.colaboradores.find((c) => c.id === id);
-    return registro ? { ...registro } : { id, nome: `Colaborador #${id} (excluído)`, email: '', isCoordenador: false };
+    return registro ? { ...registro } : { id, nome: `Colaborador #${id} (excluído)`, isCoordenador: false };
   }
 
   function projeto(banco: BancoMock, registro: ProjetoRegistro): Projeto {
@@ -110,6 +214,7 @@ export function criarGatewayMock({
   }
 
   function solicitacao(banco: BancoMock, registro: SolicitacaoRegistro): Solicitacao {
+    const decisor = registro.decididaPorId === null ? undefined : banco.usuarios.find((u) => u.id === registro.decididaPorId);
     return {
       id: registro.id,
       colaborador: colaborador(banco, registro.colaboradorId),
@@ -123,16 +228,51 @@ export function criarGatewayMock({
       totalDias: registro.totalDias,
       abono: registro.abono,
       isPessoaCritica: registro.isPessoaCritica,
+      decididaPor: decisor
+        ? {
+            usuarioId: decisor.id,
+            nomeUsuario: decisor.nomeUsuario,
+            nomeColaborador: colaborador(banco, decisor.colaboradorId).nome,
+            isAdministrador: decisor.isAdministrador,
+          }
+        : null,
+      decididaEm: registro.decididaEm,
     };
   }
 
+  /** Para quem não é Administrador: os próprios períodos e as ausências planejadas dos colegas de projeto. */
+  function periodosVisiveis(banco: BancoMock, usuario: UsuarioLogado): Periodo[] {
+    if (ehAdministrador(usuario)) return banco.periodos;
+    const colegas = new Set(
+      banco.projetos
+        .filter((p) => p.colaboradorIds.includes(usuario.colaborador.id))
+        .flatMap((p) => p.colaboradorIds),
+    );
+    const planejados = new Set(
+      banco.solicitacoes
+        .filter((s) => s.status !== StatusSolicitacao.Recusada && colegas.has(s.colaboradorId))
+        .flatMap((s) => s.periodoIds),
+    );
+    return banco.periodos.filter((p) => p.idColaborador === usuario.colaborador.id || planejados.has(p.id));
+  }
+
+  const resumo = (r: SolicitacaoRegistro) => ({
+    status: r.status,
+    colaborador: { id: r.colaboradorId },
+    coordenador: { id: r.coordenadorId },
+  });
+
   // --- Validações equivalentes às da API ---
 
-  function validarColaborador(dto: ColaboradorDto): void {
-    const violacoes = [];
-    if (dto.nome.trim() === '') violacoes.push({ campo: 'nome', mensagem: 'O nome é obrigatório.' });
-    if (!PADRAO_EMAIL.test(dto.email)) violacoes.push({ campo: 'email', mensagem: 'Informe um e-mail válido.' });
-    if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
+  function validarNomeColaborador(banco: BancoMock, dto: ColaboradorDto, ignorarId?: number): string {
+    const nome = dto.nome.trim();
+    if (nome === '') throw ErroRegraNegocio.deViolacoes([{ campo: 'nome', mensagem: 'Informe o nome completo.' }]);
+    if (banco.colaboradores.some((c) => c.id !== ignorarId && normalizar(c.nome) === normalizar(nome))) {
+      throw ErroRegraNegocio.deViolacoes([
+        { campo: 'nome', mensagem: `Já existe um colaborador chamado "${nome}". Diferencie o nome completo.` },
+      ]);
+    }
+    return nome;
   }
 
   function validarPeriodoDto(dto: PeriodoDto): void {
@@ -140,33 +280,210 @@ export function criarGatewayMock({
     if (erros.length > 0) throw ErroRegraNegocio.deViolacoes(erros.map((mensagem) => ({ campo: 'dataFim', mensagem })));
   }
 
+  function validarSolicitacaoDto(banco: BancoMock, dto: SolicitacaoDto): void {
+    const violacoes = validarRegrasSolicitacao({ quantidadePeriodos: dto.periodos.length, totalDias: dto.totalDias, abono: dto.abono });
+    if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
+    if (!isStatusSolicitacao(dto.status)) throw new ErroRegraNegocio('Status inválido.');
+    const coordenador = banco.colaboradores.find((c) => c.id === dto.coordenador.id);
+    if (!coordenador?.isCoordenador) throw new ErroRegraNegocio(`${coordenador?.nome ?? 'O colaborador'} não é coordenador.`);
+    if (dto.coordenador.id === dto.colaborador.id) throw new ErroRegraNegocio('O coordenador não pode analisar a própria solicitação.');
+  }
+
+  function camposDoDto(dto: SolicitacaoDto) {
+    return {
+      colaboradorId: dto.colaborador.id,
+      coordenadorId: dto.coordenador.id,
+      periodoIds: dto.periodos.map((p) => p.id),
+      status: dto.status,
+      criadaEm: dto.criadaEm,
+      observacao: dto.observacao,
+      totalDias: dto.totalDias,
+      abono: dto.abono,
+      isPessoaCritica: dto.isPessoaCritica,
+    };
+  }
+
+  function contarAdministradoresAtivos(banco: BancoMock): number {
+    return banco.usuarios.filter((u) => u.isAdministrador && u.ativo).length;
+  }
+
   return {
     restaurarDadosDemonstracao: async () => {
-      if (latenciaMs > 0) await new Promise((resolve) => setTimeout(resolve, latenciaMs));
+      await esperar();
       gravar(criarDadosIniciais());
+    },
+
+    autenticacao: {
+      eu: async () => {
+        await esperar();
+        const banco = ler();
+        const registro = usuarioDaSessao(banco);
+        return registro ? usuarioLogado(banco, registro) : null;
+      },
+      entrar: async (nomeUsuario, senha) => {
+        await esperar();
+        const banco = ler();
+        const registro = banco.usuarios.find((u) => normalizar(u.nomeUsuario) === normalizar(nomeUsuario));
+        if (!registro || !registro.ativo) throw new ErroNaoAutenticado(MENSAGEM_CREDENCIAIS_INVALIDAS);
+
+        const bloqueio = () => {
+          const minutos = Math.max(1, Math.ceil((new Date(registro.bloqueadoAte!).getTime() - agora().getTime()) / 60000));
+          return new ErroNaoAutenticado(`Muitas tentativas incorretas. Tente novamente em ${minutos} minuto(s).`);
+        };
+        if (estaBloqueado(registro)) throw bloqueio();
+
+        if (registro.senhaHash !== hashSenhaDemonstracao(senha)) {
+          registro.tentativasFalhas += 1;
+          if (registro.tentativasFalhas >= MAXIMO_TENTATIVAS) {
+            registro.bloqueadoAte = new Date(agora().getTime() + DURACAO_BLOQUEIO_MS).toISOString();
+            registro.tentativasFalhas = 0;
+          }
+          gravar(banco);
+          throw estaBloqueado(registro) ? bloqueio() : new ErroNaoAutenticado(MENSAGEM_CREDENCIAIS_INVALIDAS);
+        }
+
+        registro.tentativasFalhas = 0;
+        registro.bloqueadoAte = null;
+        gravar(banco);
+        iniciarSessao(registro.id);
+        return usuarioLogado(banco, registro);
+      },
+      sair: async () => {
+        await esperar();
+        armazenamento.removeItem(CHAVE_SESSAO);
+      },
+      trocarSenha: async (senhaAtual, novaSenha) => {
+        await esperar();
+        const banco = ler();
+        const registro = usuarioDaSessao(banco);
+        if (!registro) throw new ErroNaoAutenticado();
+        if (registro.senhaHash !== hashSenhaDemonstracao(senhaAtual)) {
+          throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaAtual', mensagem: 'A senha atual está incorreta.' }]);
+        }
+        const erroSenha = validarSenha(novaSenha);
+        if (erroSenha) throw ErroRegraNegocio.deViolacoes([{ campo: 'novaSenha', mensagem: erroSenha }]);
+        if (novaSenha === senhaAtual) {
+          throw ErroRegraNegocio.deViolacoes([{ campo: 'novaSenha', mensagem: 'A nova senha deve ser diferente da atual.' }]);
+        }
+        registro.senhaHash = hashSenhaDemonstracao(novaSenha);
+        registro.precisaTrocarSenha = false;
+        gravar(banco);
+        return usuarioLogado(banco, registro);
+      },
+    },
+
+    usuarios: {
+      listar: () =>
+        operar((b, eu) => {
+          exigirAdministrador(eu);
+          return b.usuarios.map((u) => contaUsuario(b, u));
+        }),
+      criar: (dto) =>
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const erroNome = validarNomeUsuario(dto.nomeUsuario);
+          if (erroNome) throw ErroRegraNegocio.deViolacoes([{ campo: 'nomeUsuario', mensagem: erroNome }]);
+          const erroSenha = validarSenha(dto.senhaTemporaria);
+          if (erroSenha) throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaTemporaria', mensagem: erroSenha }]);
+          const dono = encontrar(b.colaboradores, dto.colaboradorId, 'Colaborador não encontrado.');
+          if (b.usuarios.some((u) => u.colaboradorId === dono.id)) {
+            throw new ErroRegraNegocio(`${dono.nome} já possui acesso ao sistema.`);
+          }
+          if (b.usuarios.some((u) => normalizar(u.nomeUsuario) === normalizar(dto.nomeUsuario))) {
+            throw ErroRegraNegocio.deViolacoes([
+              { campo: 'nomeUsuario', mensagem: `O nome de usuário "${dto.nomeUsuario.trim()}" já está em uso.` },
+            ]);
+          }
+          const novo: UsuarioRegistro = {
+            id: proximoId(b.usuarios),
+            nomeUsuario: dto.nomeUsuario.trim(),
+            senhaHash: hashSenhaDemonstracao(dto.senhaTemporaria),
+            colaboradorId: dono.id,
+            isAdministrador: dto.isAdministrador,
+            ativo: true,
+            precisaTrocarSenha: true,
+            tentativasFalhas: 0,
+            bloqueadoAte: null,
+          };
+          b.usuarios.push(novo);
+          return contaUsuario(b, novo);
+        }),
+      definirAdministrador: (id, isAdministrador) =>
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
+          if (!isAdministrador && registro.isAdministrador) {
+            if (registro.id === eu.id) throw new ErroRegraNegocio('Você não pode remover seu próprio acesso de administrador.');
+            if (registro.ativo && contarAdministradoresAtivos(b) <= 1) {
+              throw new ErroRegraNegocio('O sistema precisa de pelo menos um administrador ativo.');
+            }
+          }
+          registro.isAdministrador = isAdministrador;
+          return contaUsuario(b, registro);
+        }),
+      redefinirSenha: (id, senhaTemporaria) =>
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const erroSenha = validarSenha(senhaTemporaria);
+          if (erroSenha) throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaTemporaria', mensagem: erroSenha }]);
+          const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
+          registro.senhaHash = hashSenhaDemonstracao(senhaTemporaria);
+          registro.precisaTrocarSenha = true;
+          registro.tentativasFalhas = 0;
+          registro.bloqueadoAte = null;
+          return contaUsuario(b, registro);
+        }),
+      desativar: (id) =>
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
+          if (registro.id === eu.id) throw new ErroRegraNegocio('Você não pode desativar o seu próprio acesso.');
+          if (registro.isAdministrador && registro.ativo && contarAdministradoresAtivos(b) <= 1) {
+            throw new ErroRegraNegocio('O sistema precisa de pelo menos um administrador ativo.');
+          }
+          registro.ativo = false;
+          return contaUsuario(b, registro);
+        }),
+      reativar: (id) =>
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
+          registro.ativo = true;
+          return contaUsuario(b, registro);
+        }),
     },
 
     colaboradores: {
       listar: () => operar((b) => b.colaboradores.map((c) => colaborador(b, c.id))),
       buscar: (id) => operar((b) => (b.colaboradores.some((c) => c.id === id) ? colaborador(b, id) : null)),
       criar: (dto) =>
-        mutar((b) => {
-          validarColaborador(dto);
-          const novo: ColaboradorRegistro = { id: proximoId(b.colaboradores), nome: dto.nome, email: dto.email, isCoordenador: false };
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const novo: ColaboradorRegistro = { id: proximoId(b.colaboradores), nome: validarNomeColaborador(b, dto), isCoordenador: false };
           b.colaboradores.push(novo);
           return colaborador(b, novo.id);
         }),
       atualizar: (id, dto) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
           const registro = encontrar(b.colaboradores, id, 'Colaborador não encontrado.');
-          validarColaborador(dto);
-          registro.nome = dto.nome;
-          registro.email = dto.email;
+          registro.nome = validarNomeColaborador(b, dto, id);
           return colaborador(b, id);
         }),
       excluir: (id) =>
-        mutar((b) => {
-          encontrar(b.colaboradores, id, 'Colaborador não encontrado.');
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
+          const registro = encontrar(b.colaboradores, id, 'Colaborador não encontrado.');
+          const conta = b.usuarios.find((u) => u.colaboradorId === id);
+          if (conta?.ativo) {
+            throw new ErroRegraNegocio(
+              `${registro.nome} tem acesso ativo ao sistema. Desative o usuário "${conta.nomeUsuario}" antes de excluir.`,
+            );
+          }
+          if (conta && b.solicitacoes.some((s) => s.decididaPorId === conta.id)) {
+            throw new ErroRegraNegocio('Não foi possível concluir a operação: o registro está vinculado a outros dados, como solicitações.');
+          }
+          b.usuarios = b.usuarios.filter((u) => u.colaboradorId !== id);
           b.colaboradores = b.colaboradores.filter((c) => c.id !== id);
           for (const p of b.projetos) {
             p.colaboradorIds = p.colaboradorIds.filter((x) => x !== id);
@@ -174,32 +491,38 @@ export function criarGatewayMock({
           }
         }),
       tornarCoordenador: (id) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
           encontrar(b.colaboradores, id, 'Colaborador não encontrado.').isCoordenador = true;
           return colaborador(b, id);
         }),
     },
 
     periodos: {
-      listar: () => operar((b) => b.periodos),
-      buscar: (id) => operar((b) => b.periodos.find((p) => p.id === id) ?? null),
+      listar: () => operar((b, eu) => periodosVisiveis(b, eu)),
+      buscar: (id) => operar((b, eu) => periodosVisiveis(b, eu).find((p) => p.id === id) ?? null),
       criar: (dto) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          if (!podeGerenciarPeriodo(eu, dto.idColaborador)) throw new ErroAcessoNegado('Você só pode gerenciar os seus próprios períodos.');
           validarPeriodoDto(dto);
           const novo: Periodo = { id: proximoId(b.periodos), ...dto };
           b.periodos.push(novo);
           return novo;
         }),
       atualizar: (id, dto) =>
-        mutar((b) => {
+        mutar((b, eu) => {
           const registro = encontrar(b.periodos, id, 'Período não encontrado.');
+          if (!podeGerenciarPeriodo(eu, registro.idColaborador) || !podeGerenciarPeriodo(eu, dto.idColaborador)) {
+            throw new ErroAcessoNegado('Você só pode gerenciar os seus próprios períodos.');
+          }
           validarPeriodoDto(dto);
           Object.assign(registro, dto);
           return registro;
         }),
       excluir: (id) =>
-        mutar((b) => {
-          encontrar(b.periodos, id, 'Período não encontrado.');
+        mutar((b, eu) => {
+          const registro = encontrar(b.periodos, id, 'Período não encontrado.');
+          if (!podeGerenciarPeriodo(eu, registro.idColaborador)) throw new ErroAcessoNegado('Você só pode gerenciar os seus próprios períodos.');
           b.periodos = b.periodos.filter((p) => p.id !== id);
         }),
     },
@@ -212,7 +535,8 @@ export function criarGatewayMock({
           return registro ? projeto(b, registro) : null;
         }),
       criar: (dto) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
           if (dto.nome.trim() === '') throw ErroRegraNegocio.deViolacoes([{ campo: 'nome', mensagem: 'O nome é obrigatório.' }]);
           const novo: ProjetoRegistro = {
             id: proximoId(b.projetos),
@@ -224,7 +548,8 @@ export function criarGatewayMock({
           return projeto(b, novo);
         }),
       atualizar: (id, dto) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
           const registro = encontrar(b.projetos, id, 'Projeto não encontrado.');
           if (dto.nome.trim() === '') throw ErroRegraNegocio.deViolacoes([{ campo: 'nome', mensagem: 'O nome é obrigatório.' }]);
           registro.nome = dto.nome;
@@ -233,66 +558,86 @@ export function criarGatewayMock({
           return projeto(b, registro);
         }),
       excluir: (id) =>
-        mutar((b) => {
+        mutar((b, eu) => {
+          exigirAdministrador(eu);
           encontrar(b.projetos, id, 'Projeto não encontrado.');
           b.projetos = b.projetos.filter((p) => p.id !== id);
         }),
     },
 
     solicitacoes: {
-      listar: () => operar((b) => b.solicitacoes.map((s) => solicitacao(b, s))),
+      listar: () =>
+        operar((b, eu) => b.solicitacoes.filter((s) => podeVerSolicitacao(eu, resumo(s))).map((s) => solicitacao(b, s))),
       buscar: (id) =>
-        operar((b) => {
+        operar((b, eu) => {
           const registro = b.solicitacoes.find((s) => s.id === id);
-          return registro ? solicitacao(b, registro) : null;
+          return registro && podeVerSolicitacao(eu, resumo(registro)) ? solicitacao(b, registro) : null;
         }),
       criar: (dto) =>
-        mutar((b) => {
-          const violacoes = validarRegrasSolicitacao({ quantidadePeriodos: dto.periodos.length, totalDias: dto.totalDias, abono: dto.abono });
-          if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
-          if (!isStatusSolicitacao(dto.status)) throw new ErroRegraNegocio('Status inválido.');
-          const novo: SolicitacaoRegistro = {
-            id: proximoId(b.solicitacoes),
-            colaboradorId: dto.colaborador.id,
-            coordenadorId: dto.coordenador.id,
-            periodoIds: dto.periodos.map((p) => p.id),
-            status: dto.status,
-            criadaEm: dto.criadaEm,
-            observacao: dto.observacao,
-            totalDias: dto.totalDias,
-            abono: dto.abono,
-            isPessoaCritica: dto.isPessoaCritica,
-          };
+        mutar((b, eu) => {
+          if (!ehAdministrador(eu) && dto.colaborador.id !== eu.colaborador.id) {
+            throw new ErroAcessoNegado('Você só pode criar solicitações para você mesmo.');
+          }
+          validarSolicitacaoDto(b, dto);
+          const novo: SolicitacaoRegistro = { id: proximoId(b.solicitacoes), ...camposDoDto(dto), decididaPorId: null, decididaEm: null };
           b.solicitacoes.push(novo);
           return solicitacao(b, novo);
         }),
       atualizar: (id, dto) =>
-        mutar((b) => {
-          const registro = encontrar(b.solicitacoes, id, 'Solicitação não encontrada.');
-          const violacoes = validarRegrasSolicitacao({ quantidadePeriodos: dto.periodos.length, totalDias: dto.totalDias, abono: dto.abono });
-          if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
-          if (!isStatusSolicitacao(dto.status)) throw new ErroRegraNegocio('Status inválido.');
-          Object.assign(registro, {
-            colaboradorId: dto.colaborador.id,
-            coordenadorId: dto.coordenador.id,
-            periodoIds: dto.periodos.map((p) => p.id),
-            status: dto.status,
-            criadaEm: dto.criadaEm,
-            observacao: dto.observacao,
-            totalDias: dto.totalDias,
-            abono: dto.abono,
-            isPessoaCritica: dto.isPessoaCritica,
-          });
+        mutar((b, eu) => {
+          const registro = b.solicitacoes.find((s) => s.id === id);
+          if (!registro || !podeVerSolicitacao(eu, resumo(registro))) throw new ErroNaoEncontrado('Solicitação não encontrada.');
+
+          const ehDecisao = dto.status === StatusSolicitacao.Aprovada || dto.status === StatusSolicitacao.Recusada;
+          if (ehDecisao && !podeDecidir(eu, { ...resumo(registro), status: StatusSolicitacao.EmAnalise })) {
+            throw new ErroAcessoNegado(
+              registro.colaboradorId === eu.colaborador.id
+                ? 'Você não pode aprovar ou recusar a sua própria solicitação.'
+                : 'Somente o coordenador escolhido ou um administrador pode aprovar ou recusar esta solicitação.',
+            );
+          }
+          const podeEditar = ehAdministrador(eu) || registro.colaboradorId === eu.colaborador.id;
+          if (!podeEditar) {
+            const mesmosPeriodos =
+              [...registro.periodoIds].sort().join() === dto.periodos.map((p) => p.id).sort().join();
+            const somenteStatus =
+              dto.colaborador.id === registro.colaboradorId &&
+              dto.coordenador.id === registro.coordenadorId &&
+              mesmosPeriodos &&
+              dto.abono === registro.abono;
+            if (!somenteStatus) throw new ErroAcessoNegado('Você só pode alterar o status desta solicitação.');
+          } else if (!ehAdministrador(eu) && dto.colaborador.id !== registro.colaboradorId) {
+            throw new ErroAcessoNegado('Você não pode transferir a solicitação para outro colaborador.');
+          }
+          if (isStatusFinal(registro.status)) {
+            throw new ErroRegraNegocio('Solicitações aprovadas ou recusadas não podem ser alteradas.');
+          }
+
+          validarSolicitacaoDto(b, dto);
+          Object.assign(registro, camposDoDto(dto));
+          if (ehDecisao) {
+            registro.decididaPorId = eu.id;
+            registro.decididaEm = agora().toISOString();
+          }
           return solicitacao(b, registro);
         }),
       excluir: (id) =>
-        mutar((b) => {
-          encontrar(b.solicitacoes, id, 'Solicitação não encontrada.');
+        mutar((b, eu) => {
+          const registro = b.solicitacoes.find((s) => s.id === id);
+          if (!registro || !podeVerSolicitacao(eu, resumo(registro))) throw new ErroNaoEncontrado('Solicitação não encontrada.');
+          if (!podeExcluirSolicitacao(eu, resumo(registro))) {
+            throw new ErroAcessoNegado(
+              'Somente o próprio colaborador, antes da decisão, ou um administrador pode excluir esta solicitação.',
+            );
+          }
           b.solicitacoes = b.solicitacoes.filter((s) => s.id !== id);
         }),
       validar: (id) =>
-        operar((b) => {
-          const alvo = solicitacao(b, encontrar(b.solicitacoes, id, 'Solicitação não encontrada.'));
+        operar((b, eu) => {
+          const registro = b.solicitacoes.find((s) => s.id === id);
+          if (!registro || !podeVerSolicitacao(eu, resumo(registro))) throw new ErroNaoEncontrado('Solicitação não encontrada.');
+          if (!podeValidarConflito(eu, { ...resumo(registro), status: StatusSolicitacao.EmAnalise })) throw new ErroAcessoNegado();
+          const alvo = solicitacao(b, registro);
           if (alvo.periodos.length === 0) throw new ErroRegraNegocio('A solicitação não possui períodos.');
           const conflitos = detectarConflitos(
             alvo,

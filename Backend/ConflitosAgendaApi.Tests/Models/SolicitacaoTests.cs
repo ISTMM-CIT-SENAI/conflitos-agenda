@@ -47,8 +47,8 @@ public class SolicitacaoTests
         bool abono = false,
         int totalDias = 10)
     {
-        var colaborador = new Colaborador("Colaborador", "colaborador@example.com", new(), false);
-        var coordenador = new Colaborador("Coordenador", "coordenador@example.com", new(), true);
+        var colaborador = new Colaborador("Colaborador", new(), false);
+        var coordenador = new Colaborador("Coordenador", new(), true);
 
         return new Solicitacao(
             colaborador,

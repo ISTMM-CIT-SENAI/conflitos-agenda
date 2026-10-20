@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Projeto> Projetos { get; set; }
     public DbSet<Solicitacao> Solicitacoes { get; set; }
     public DbSet<Periodo> Periodos { get; set; }
+    public DbSet<Usuario> Usuarios { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,5 +39,33 @@ public class AppDbContext : DbContext
             .HasOne(solicitacao => solicitacao.Coordenador)
             .WithMany()
             .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<Solicitacao>()
+            .HasOne(solicitacao => solicitacao.DecididaPor)
+            .WithMany()
+            .HasForeignKey(solicitacao => solicitacao.DecididaPorId)
+            .OnDelete(DeleteBehavior.NoAction);
+        modelBuilder.Entity<Solicitacao>().Ignore(solicitacao => solicitacao.EstaDecidida);
+
+        // Nome completo é o único identificador do Colaborador: único, sem diferenciar maiúsculas.
+        modelBuilder.Entity<Colaborador>()
+            .Property(colaborador => colaborador.Nome)
+            .UseCollation("NOCASE");
+        modelBuilder.Entity<Colaborador>()
+            .HasIndex(colaborador => colaborador.Nome)
+            .IsUnique();
+
+        modelBuilder.Entity<Usuario>(usuario =>
+        {
+            usuario.HasIndex(u => u.NomeUsuarioNormalizado).IsUnique();
+            // Cada Colaborador tem no máximo um Usuário.
+            usuario.HasIndex(u => u.ColaboradorId).IsUnique();
+            usuario.HasOne(u => u.Colaborador)
+                .WithMany()
+                .HasForeignKey(u => u.ColaboradorId)
+                .OnDelete(DeleteBehavior.Restrict);
+            usuario.Property(u => u.NomeUsuario).HasMaxLength(30);
+            usuario.Property(u => u.NomeUsuarioNormalizado).HasMaxLength(30);
+        });
     }
 }

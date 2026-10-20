@@ -23,18 +23,18 @@ namespace ConflitosAgendaApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Email")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<bool>("IsCoordenador")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Nome")
                         .IsRequired()
-                        .HasColumnType("TEXT");
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Nome")
+                        .IsUnique();
 
                     b.ToTable("Colaboradores");
                 });
@@ -97,6 +97,12 @@ namespace ConflitosAgendaApi.Migrations
                     b.Property<DateTimeOffset>("CriadaEm")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset?>("DecididaEm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DecididaPorId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Observacao")
                         .HasColumnType("TEXT");
 
@@ -115,7 +121,62 @@ namespace ConflitosAgendaApi.Migrations
 
                     b.HasIndex("CoordenadorId");
 
+                    b.HasIndex("DecididaPorId");
+
                     b.ToTable("Solicitacoes");
+                });
+
+            modelBuilder.Entity("ConflitosAgendaApi.Models.Usuario", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("BloqueadoAteUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CarimboSeguranca")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ColaboradorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsAdministrador")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NomeUsuario")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NomeUsuarioNormalizado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PrecisaTrocarSenha")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SenhaHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TentativasFalhas")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ColaboradorId")
+                        .IsUnique();
+
+                    b.HasIndex("NomeUsuarioNormalizado")
+                        .IsUnique();
+
+                    b.ToTable("Usuarios");
                 });
 
             modelBuilder.Entity("ProjetoColaborador", b =>
@@ -169,9 +230,27 @@ namespace ConflitosAgendaApi.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
+                    b.HasOne("ConflitosAgendaApi.Models.Usuario", "DecididaPor")
+                        .WithMany()
+                        .HasForeignKey("DecididaPorId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Colaborador");
 
                     b.Navigation("Coordenador");
+
+                    b.Navigation("DecididaPor");
+                });
+
+            modelBuilder.Entity("ConflitosAgendaApi.Models.Usuario", b =>
+                {
+                    b.HasOne("ConflitosAgendaApi.Models.Colaborador", "Colaborador")
+                        .WithMany()
+                        .HasForeignKey("ColaboradorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Colaborador");
                 });
 
             modelBuilder.Entity("ProjetoColaborador", b =>

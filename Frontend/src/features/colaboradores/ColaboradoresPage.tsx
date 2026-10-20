@@ -4,7 +4,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import { Box, Button, Chip, InputAdornment, Link, TextField } from '@mui/material';
+import { Box, Button, Chip, InputAdornment, Link, TextField, Typography } from '@mui/material';
 import { GridActionsCellItem, type GridColDef } from '@mui/x-data-grid';
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
 import { TabelaDados } from '@/components/tables/TabelaDados';
 import type { Colaborador } from '@/domain/entities';
-import { useColaboradores, useMutacao, usePeriodos, useSolicitacoes } from '@/hooks/useDados';
+import { useColaboradores, useMutacao, usePeriodos, useSolicitacoes, useUsuarios } from '@/hooks/useDados';
 import { useFiltrosUrl } from '@/hooks/useFiltrosUrl';
 import { contemTexto } from '@/lib/texto';
 import { ColaboradorFormDialog } from './ColaboradorFormDialog';
@@ -22,6 +22,7 @@ import { ColaboradorFormDialog } from './ColaboradorFormDialog';
 interface Linha extends Colaborador {
   qtdPeriodos: number;
   qtdSolicitacoes: number;
+  acesso: string;
 }
 
 export function ColaboradoresPage() {
@@ -33,6 +34,7 @@ export function ColaboradoresPage() {
   const colaboradores = useColaboradores();
   const periodos = usePeriodos();
   const solicitacoes = useSolicitacoes();
+  const usuarios = useUsuarios();
 
   const [formulario, setFormulario] = useState<{ aberto: boolean; colaborador: Colaborador | null }>({
     aberto: false,
@@ -49,13 +51,17 @@ export function ColaboradoresPage() {
   const linhas = useMemo<Linha[]>(
     () =>
       (colaboradores.data ?? [])
-        .filter((c) => !busca || contemTexto(c.nome, busca) || contemTexto(c.email, busca))
+        .filter((c) => !busca || contemTexto(c.nome, busca))
         .map((c) => ({
           ...c,
           qtdPeriodos: (periodos.data ?? []).filter((p) => p.idColaborador === c.id).length,
           qtdSolicitacoes: (solicitacoes.data ?? []).filter((s) => s.colaborador.id === c.id).length,
+          acesso: (() => {
+            const conta = usuarios.data?.find((u) => u.colaborador.id === c.id);
+            return conta ? `${conta.nomeUsuario}${conta.ativo ? '' : ' (desativado)'}` : '';
+          })(),
         })),
-    [colaboradores.data, periodos.data, solicitacoes.data, busca],
+    [colaboradores.data, periodos.data, solicitacoes.data, usuarios.data, busca],
   );
 
   const colunas: GridColDef<Linha>[] = [
@@ -70,7 +76,20 @@ export function ColaboradoresPage() {
         </Link>
       ),
     },
-    { field: 'email', headerName: 'E-mail', flex: 1.2, minWidth: 200 },
+    {
+      field: 'acesso',
+      headerName: 'Acesso ao sistema',
+      flex: 1,
+      minWidth: 170,
+      renderCell: ({ row }) =>
+        row.acesso ? (
+          row.acesso
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 'inherit' }}>
+            Sem acesso
+          </Typography>
+        ),
+    },
     {
       field: 'isCoordenador',
       headerName: 'Perfil',
@@ -125,7 +144,7 @@ export function ColaboradoresPage() {
     <>
       <PageHeader
         titulo="Colaboradores"
-        subtitulo="Pessoas cadastradas e seus perfis de coordenação."
+        subtitulo="Pessoas cadastradas, seus perfis de coordenação e acesso ao sistema."
         acoes={
           <Button
             variant="contained"
@@ -139,7 +158,7 @@ export function ColaboradoresPage() {
 
       <Box sx={{ mb: 2, maxWidth: 420 }}>
         <TextField
-          placeholder="Buscar por nome ou e-mail"
+          placeholder="Buscar por nome"
           value={busca}
           onChange={(e) => filtros.definir('busca', e.target.value)}
           slotProps={{

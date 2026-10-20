@@ -7,8 +7,20 @@ Organiza os períodos de ausência dos colaboradores e a análise das solicitaç
 ### Pessoas e projetos
 
 **Colaborador**:
-Pessoa cadastrada no sistema, identificada por nome e e-mail.
+Pessoa cadastrada no sistema, identificada apenas pelo nome completo, que é único. O sistema não guarda e-mail nem outros contatos.
 _Evitar_: Funcionário, usuário, pessoa
+
+**Usuário**:
+Conta de acesso ao sistema, identificada por um nome de usuário (ex.: `Arthur6890`) e uma senha, e sempre pertencente a exatamente um Colaborador. Um Colaborador tem no máximo um Usuário e pode não ter nenhum. O Usuário é quem entra no sistema; o Colaborador é quem se ausenta. Um Usuário desativado não entra mais, mas seu histórico é preservado.
+_Evitar_: Login, conta, colaborador
+
+**Nível de acesso**:
+O que um Usuário pode fazer no sistema: Administrador, Coordenador ou Colaborador. Fora o Administrador, o nível é derivado do Colaborador ligado ao Usuário: Coordenador se ele for Coordenador; senão, Colaborador.
+_Evitar_: Perfil, papel, role, permissão
+
+**Administrador**:
+Usuário com acesso total: mantém colaboradores, projetos e usuários, vê tudo e pode decidir qualquer Solicitação, exceto a própria. Também é um Colaborador, normalmente Coordenador.
+_Evitar_: Admin, gestor, superusuário
 
 **Coordenador**:
 Colaborador habilitado a analisar Solicitações de outros colaboradores. Nunca analisa a própria Solicitação.
@@ -35,6 +47,10 @@ _Evitar_: Data final, último dia
 **Solicitação**:
 Pedido de um Colaborador para que de 1 a 3 Períodos já cadastrados sejam analisados por um Coordenador.
 _Evitar_: Pedido, requisição
+
+**Decisão**:
+Aprovação ou recusa de uma Solicitação, registrada com quem decidiu e quando. Normalmente é tomada pelo Coordenador escolhido, mas um Administrador pode decidir no lugar dele; o Coordenador escolhido continua registrado.
+_Evitar_: Análise, parecer, avaliação
 
 **Total de Dias**:
 Soma das durações dos Períodos de uma Solicitação. É sempre calculado, nunca informado.

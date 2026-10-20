@@ -19,6 +19,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
             .Include(s => s.Coordenador)
+            .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .FirstOrDefaultAsync(s => s.Id == id);
         return solicitacao;
     }
@@ -29,6 +30,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
             .Include(s => s.Coordenador)
+            .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .ToListAsync();
         
         return list;
@@ -40,6 +42,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
             .Include(s => s.Coordenador)
+            .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .Where(s => s.Colaborador.Id == colaboradorId)
             .ToListAsync();
             
@@ -52,6 +55,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
             .Include(s => s.Coordenador)
+            .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .Where(s => s.Status == status)
             .ToListAsync();
 

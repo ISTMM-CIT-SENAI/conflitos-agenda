@@ -2,6 +2,7 @@ import { criarServicos } from './criarServicos';
 import type { Servicos } from './contracts/servicos';
 import { criarGatewayHttp } from './http/gatewayHttp';
 import { criarArmazenamentoEmMemoria, type Armazenamento } from './mocks/banco';
+import { CREDENCIAIS_DEMONSTRACAO } from './mocks/dadosDemonstracao';
 import { criarGatewayMock } from './mocks/gatewayMock';
 
 export type FonteDeDados = 'mock' | 'api';
@@ -28,7 +29,9 @@ export function criarServicosConfigurados(): Servicos {
     return criarServicos(criarGatewayHttp(import.meta.env.VITE_API_URL ?? 'http://localhost:5165'));
   }
   const mock = criarGatewayMock({ armazenamento: armazenamentoDoNavegador(), latenciaMs: 450 });
-  return criarServicos(mock, { demonstracao: { restaurarDados: mock.restaurarDadosDemonstracao } });
+  return criarServicos(mock, {
+    demonstracao: { restaurarDados: mock.restaurarDadosDemonstracao, credenciais: CREDENCIAIS_DEMONSTRACAO },
+  });
 }
 
 export type { Servicos } from './contracts/servicos';

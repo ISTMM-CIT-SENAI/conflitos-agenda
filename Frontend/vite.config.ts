@@ -23,6 +23,11 @@ export default defineConfig({
   optimizeDeps: {
     entries: ['index.html', 'src/**/*.tsx'],
   },
+  build: {
+    // O chunk inicial (React, MUI, roteamento e sessão) fica em ~510 kB (~155 kB com gzip).
+    // Separar o MUI manualmente aumentou o total baixado no início, então só o limite foi ajustado.
+    chunkSizeWarningLimit: 600,
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

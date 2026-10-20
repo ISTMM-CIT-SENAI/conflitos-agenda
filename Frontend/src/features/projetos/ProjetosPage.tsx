@@ -60,7 +60,6 @@ function MembrosDialog({ projeto, onFechar }: { projeto: Projeto | null; onFecha
                         {c.nome}
                       </Link>
                     }
-                    secondary={c.email}
                   />
                 </ListItem>
               );

@@ -23,6 +23,9 @@ import {
 import type { ReactElement, ReactNode } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
+import { LinkColaborador } from '@/components/common/LinkColaborador';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { ehAdministrador } from '@/domain/acesso';
 import { StatusChip } from '@/components/common/StatusChip';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
 import { solicitacaoDoPeriodo } from '@/domain/consultas';
@@ -93,13 +96,21 @@ export function DashboardPage() {
   const periodos = usePeriodos();
   const solicitacoes = useSolicitacoes();
   const consultas = [colaboradores, projetos, periodos, solicitacoes];
+  const usuario = useUsuarioLogado();
+  const admin = ehAdministrador(usuario);
+  const meuId = usuario.colaborador.id;
 
   const lista = solicitacoes.data ?? [];
   const contar = (status: StatusSolicitacao) => lista.filter((s) => s.status === status).length;
 
   const indicadores: Indicador[] = [
-    { rotulo: 'Colaboradores', valor: colaboradores.data?.length ?? 0, icone: <PeopleAltOutlinedIcon />, cor: '#1d4f91', destino: '/colaboradores' },
-    { rotulo: 'Projetos', valor: projetos.data?.length ?? 0, icone: <FolderOutlinedIcon />, cor: '#5e35b1', destino: '/projetos' },
+    // Cadastros são exclusivos do Administrador; os demais veem só os indicadores das suas solicitações.
+    ...(admin
+      ? [
+          { rotulo: 'Colaboradores', valor: colaboradores.data?.length ?? 0, icone: <PeopleAltOutlinedIcon />, cor: '#1d4f91', destino: '/colaboradores' },
+          { rotulo: 'Projetos', valor: projetos.data?.length ?? 0, icone: <FolderOutlinedIcon />, cor: '#5e35b1', destino: '/projetos' },
+        ]
+      : []),
     { rotulo: 'Em análise', valor: contar(StatusSolicitacao.EmAnalise), icone: <HourglassEmptyIcon />, cor: '#0277bd', destino: `/solicitacoes?status=${StatusSolicitacao.EmAnalise}` },
     { rotulo: 'Com conflito', valor: contar(StatusSolicitacao.ConflitoEncontrado), icone: <WarningAmberIcon />, cor: '#e65100', destino: `/solicitacoes?status=${StatusSolicitacao.ConflitoEncontrado}` },
     { rotulo: 'Aprovadas', valor: contar(StatusSolicitacao.Aprovada), icone: <CheckCircleOutlineIcon />, cor: '#2e7d32', destino: `/solicitacoes?status=${StatusSolicitacao.Aprovada}` },
@@ -116,8 +127,12 @@ export function DashboardPage() {
     .sort((a, b) => a.intervalo.inicio.localeCompare(b.intervalo.inicio))
     .slice(0, 6);
 
+  // Administrador: todas as pendentes. Coordenador: as atribuídas a ele. Colaborador: as próprias.
   const aguardando = lista
     .filter((s) => !isStatusFinal(s.status))
+    .filter((s) =>
+      admin ? true : usuario.colaborador.isCoordenador ? s.coordenador.id === meuId && s.colaborador.id !== meuId : s.colaborador.id === meuId,
+    )
     .sort((a, b) => a.criadaEm.localeCompare(b.criadaEm))
     .slice(0, 6);
 
@@ -166,15 +181,17 @@ export function DashboardPage() {
                       disableGutters
                       divider
                       secondaryAction={
-                        solicitacao ? <StatusChip status={solicitacao.status} /> : <Chip label="Sem solicitação" size="small" variant="outlined" />
+                        solicitacao ? (
+                          <StatusChip status={solicitacao.status} />
+                        ) : (
+                          <Chip label={periodo.idColaborador === meuId || admin ? 'Sem solicitação' : 'Colega de projeto'} size="small" variant="outlined" />
+                        )
                       }
                     >
                       <ListItemText
                         sx={{ pr: 18 }}
                         primary={
-                          <Link component={RouterLink} to={`/colaboradores/${periodo.idColaborador}`} underline="hover">
-                            {nomeDe(periodo.idColaborador)}
-                          </Link>
+                          <LinkColaborador id={periodo.idColaborador} nome={nomeDe(periodo.idColaborador)} />
                         }
                         secondary={`${intervalo.inicio <= hoje ? 'Em andamento · ' : ''}${descreverPeriodo(periodo)}`}
                       />
@@ -187,7 +204,7 @@ export function DashboardPage() {
 
           <Grid size={{ xs: 12, lg: 5 }}>
             <Painel
-              titulo="Aguardando decisão"
+              titulo={admin ? 'Aguardando decisão' : usuario.colaborador.isCoordenador ? 'Aguardando sua decisão' : 'Minhas solicitações em análise'}
               acao={
                 <Button size="small" component={RouterLink} to="/solicitacoes">
                   Ver todas

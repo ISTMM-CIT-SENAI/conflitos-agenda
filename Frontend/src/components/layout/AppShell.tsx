@@ -1,9 +1,11 @@
+import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import DateRangeOutlinedIcon from '@mui/icons-material/DateRangeOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import LogoutIcon from '@mui/icons-material/Logout';
 import MenuIcon from '@mui/icons-material/Menu';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -27,6 +29,8 @@ import {
 import { useState, type ReactElement } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useServicos } from '@/app/providers/useServicos';
+import { useUsuarioLogado, useSessao } from '@/app/providers/useSessao';
+import { ROTULO_NIVEL, ehAdministrador } from '@/domain/acesso';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useMutacao } from '@/hooks/useDados';
 
@@ -36,20 +40,25 @@ interface ItemMenu {
   rotulo: string;
   caminho: string;
   icone: ReactElement;
+  somenteAdministrador?: boolean;
 }
 
 const ITENS_MENU: ItemMenu[] = [
   { rotulo: 'Dashboard', caminho: '/', icone: <DashboardOutlinedIcon /> },
-  { rotulo: 'Colaboradores', caminho: '/colaboradores', icone: <PeopleAltOutlinedIcon /> },
-  { rotulo: 'Projetos', caminho: '/projetos', icone: <FolderOutlinedIcon /> },
+  { rotulo: 'Colaboradores', caminho: '/colaboradores', icone: <PeopleAltOutlinedIcon />, somenteAdministrador: true },
+  { rotulo: 'Projetos', caminho: '/projetos', icone: <FolderOutlinedIcon />, somenteAdministrador: true },
   { rotulo: 'Períodos', caminho: '/periodos', icone: <DateRangeOutlinedIcon /> },
   { rotulo: 'Solicitações', caminho: '/solicitacoes', icone: <AssignmentOutlinedIcon /> },
   { rotulo: 'Calendário', caminho: '/calendario', icone: <CalendarMonthOutlinedIcon /> },
+  { rotulo: 'Usuários', caminho: '/usuarios', icone: <AdminPanelSettingsOutlinedIcon />, somenteAdministrador: true },
 ];
 
 function ConteudoMenu({ onNavegar }: { onNavegar: () => void }) {
   const { demonstracao } = useServicos();
+  const { sair } = useSessao();
+  const usuario = useUsuarioLogado();
   const { pathname } = useLocation();
+  const itens = ITENS_MENU.filter((item) => !item.somenteAdministrador || ehAdministrador(usuario));
   const [confirmandoRestauracao, setConfirmandoRestauracao] = useState(false);
   const restaurar = useMutacao(async () => demonstracao?.restaurarDados(), {
     sucesso: 'Dados de demonstração restaurados.',
@@ -67,7 +76,7 @@ function ConteudoMenu({ onNavegar }: { onNavegar: () => void }) {
       </Toolbar>
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
       <List component="nav" aria-label="Navegação principal" sx={{ px: 1, py: 2, flex: 1 }}>
-        {ITENS_MENU.map((item) => (
+        {itens.map((item) => (
           <ListItemButton
             key={item.caminho}
             component={NavLink}
@@ -87,6 +96,25 @@ function ConteudoMenu({ onNavegar }: { onNavegar: () => void }) {
           </ListItemButton>
         ))}
       </List>
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
+      <Box sx={{ px: 2, pt: 2, pb: demonstracao ? 0 : 2 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap title={usuario.colaborador.nome}>
+          {usuario.colaborador.nome}
+        </Typography>
+        <Typography variant="caption" sx={{ opacity: 0.75, display: 'block' }} noWrap>
+          {usuario.nomeUsuario} · {ROTULO_NIVEL[usuario.nivel]}
+        </Typography>
+        <Button
+          fullWidth
+          color="inherit"
+          size="small"
+          startIcon={<LogoutIcon />}
+          onClick={() => void sair()}
+          sx={{ mt: 1, justifyContent: 'flex-start' }}
+        >
+          Sair
+        </Button>
+      </Box>
       {demonstracao && (
         <Box sx={{ p: 2 }}>
           <Chip label="Modo demonstração" size="small" sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,0.14)', color: 'inherit' }} />

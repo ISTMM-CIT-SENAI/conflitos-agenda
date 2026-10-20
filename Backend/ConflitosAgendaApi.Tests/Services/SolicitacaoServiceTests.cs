@@ -112,7 +112,7 @@ public class SolicitacaoServiceTests
 
     private static Colaborador CriarColaborador()
     {
-        return new Colaborador("Pessoa", "pessoa@example.com", new(), false);
+        return new Colaborador("Pessoa", new(), false);
     }
 
     private static Periodo CriarPeriodo()
@@ -133,6 +133,7 @@ public class SolicitacaoServiceTests
         public Task<Colaborador?> UpdateAsync(Colaborador colaborador) => Task.FromResult<Colaborador?>(colaborador);
         public Task<Colaborador?> DeleteAsync(int id) => Task.FromResult<Colaborador?>(null);
         public Task<Colaborador?> TornarCoordenadorAsync(int id) => Task.FromResult<Colaborador?>(null);
+        public Task<bool> ExisteComNomeAsync(string nome, int? ignorarId = null) => Task.FromResult(false);
     }
 
     /// <summary>Devolve um período válido para qualquer ID.</summary>

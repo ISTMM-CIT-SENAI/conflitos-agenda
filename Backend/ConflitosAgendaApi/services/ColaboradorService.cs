@@ -8,10 +8,27 @@ namespace ConflitosAgendaApi.Services;
 public class ColaboradorService : IColaboradorService
 {
     private readonly IColaboradorRepository _colaboradorRepository;
+    private readonly IUsuarioRepository _usuarioRepository;
 
-    public ColaboradorService(IColaboradorRepository colaboradorRepository)
+    public ColaboradorService(IColaboradorRepository colaboradorRepository, IUsuarioRepository usuarioRepository)
     {
         _colaboradorRepository = colaboradorRepository;
+        _usuarioRepository = usuarioRepository;
+    }
+
+    /// <summary>O nome completo é o único identificador do Colaborador: não pode se repetir.</summary>
+    private async Task<string> ValidarNomeAsync(string nome, int? ignorarId = null)
+    {
+        var nomeLimpo = (nome ?? string.Empty).Trim();
+        if (nomeLimpo.Length == 0)
+        {
+            throw new ArgumentException("Informe o nome completo.");
+        }
+        if (await _colaboradorRepository.ExisteComNomeAsync(nomeLimpo, ignorarId))
+        {
+            throw new ArgumentException($"Já existe um colaborador chamado \"{nomeLimpo}\". Diferencie o nome completo.");
+        }
+        return nomeLimpo;
     }
 
     public async Task<Colaborador?> GetByIdAsync(int id)
@@ -32,8 +49,7 @@ public class ColaboradorService : IColaboradorService
         ColaboradorInsertionDto dto)
     {
         var colaborador = new Colaborador(
-            dto.Nome,
-            dto.Email,
+            await ValidarNomeAsync(dto.Nome),
             new List<Projeto>(),
             false);
 
@@ -56,7 +72,7 @@ public class ColaboradorService : IColaboradorService
             return null;
         }
 
-        colaborador.AtualizarDados(dto.Nome, dto.Email);
+        colaborador.AtualizarDados(await ValidarNomeAsync(dto.Nome, id));
 
         var colaboradorAtualizado = await _colaboradorRepository.UpdateAsync(colaborador);
 
@@ -75,6 +91,20 @@ public class ColaboradorService : IColaboradorService
         {
             throw new ArgumentNullException("O colaborador informado não existe.");
         }
+
+        // Quem tem acesso ativo precisa ser desativado antes; uma conta já desativada
+        // sai junto (se ela registrou decisões, o banco bloqueia e a API responde 409).
+        var usuario = await _usuarioRepository.GetByColaboradorIdAsync(id);
+        if (usuario is not null)
+        {
+            if (usuario.Ativo)
+            {
+                throw new ArgumentException(
+                    $"{colaborador.Nome} tem acesso ativo ao sistema. Desative o usuário \"{usuario.NomeUsuario}\" antes de excluir.");
+            }
+            await _usuarioRepository.RemoveAsync(usuario);
+        }
+
         await _colaboradorRepository.DeleteAsync(id);
         return true;
     }

@@ -19,6 +19,9 @@ import { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 import { duracaoEmDias, intervaloDoPeriodo, ultimoDiaDeAusencia } from '@/domain/validation/periodo';
 import { useColaboradores, useMutacao, usePeriodos, useSolicitacoes } from '@/hooks/useDados';
 import { useFiltrosUrl } from '@/hooks/useFiltrosUrl';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { LinkColaborador } from '@/components/common/LinkColaborador';
+import { ehAdministrador } from '@/domain/acesso';
 import { formatarData } from '@/lib/datas';
 import { PeriodoFormDialog } from './PeriodoFormDialog';
 
@@ -34,7 +37,10 @@ interface Linha extends Periodo {
 export function PeriodosPage() {
   const servicos = useServicos();
   const filtros = useFiltrosUrl<'colaborador'>();
-  const colaboradorId = filtros.obterNumero('colaborador');
+  const usuario = useUsuarioLogado();
+  const admin = ehAdministrador(usuario);
+  // Quem não é administrador vê e gerencia só os próprios períodos.
+  const colaboradorId = admin ? filtros.obterNumero('colaborador') : usuario.colaborador.id;
 
   const colaboradores = useColaboradores();
   const periodos = usePeriodos();
@@ -74,11 +80,7 @@ export function PeriodosPage() {
       headerName: 'Colaborador',
       flex: 1,
       minWidth: 170,
-      renderCell: ({ row }) => (
-        <Link component={RouterLink} to={`/colaboradores/${row.idColaborador}`} underline="hover">
-          {row.colaboradorNome}
-        </Link>
-      ),
+      renderCell: ({ row }) => <LinkColaborador id={row.idColaborador} nome={row.colaboradorNome} />,
     },
     { field: 'inicio', headerName: 'Início', width: 115, valueFormatter: (v: string) => formatarData(v) },
     { field: 'ultimoDia', headerName: 'Último dia', width: 115, valueFormatter: (v: string) => formatarData(v) },
@@ -138,7 +140,7 @@ export function PeriodosPage() {
     <>
       <PageHeader
         titulo="Períodos"
-        subtitulo="Intervalos de ausência dos colaboradores, de 10 a 30 dias."
+        subtitulo={admin ? 'Intervalos de ausência dos colaboradores, de 10 a 30 dias.' : 'Seus intervalos de ausência, de 10 a 30 dias.'}
         acoes={
           <>
             <Button
@@ -155,6 +157,7 @@ export function PeriodosPage() {
         }
       />
 
+      {admin && (
       <Box sx={{ mb: 2, maxWidth: 360 }}>
         <SeletorColaborador
           rotulo="Filtrar por colaborador"
@@ -164,6 +167,7 @@ export function PeriodosPage() {
           onChange={(id) => filtros.definir('colaborador', id)}
         />
       </Box>
+      )}
 
       <EstadoConsulta
         carregando={consultas.some((c) => c.isPending)}
@@ -188,7 +192,7 @@ export function PeriodosPage() {
       <PeriodoFormDialog
         aberto={formulario.aberto}
         periodo={formulario.periodo}
-        colaboradorBloqueado={formulario.bloqueado}
+        colaboradorBloqueado={formulario.bloqueado || !admin}
         colaboradorIdInicial={colaboradorId}
         onFechar={() => setFormulario({ aberto: false, periodo: null, bloqueado: false })}
       />

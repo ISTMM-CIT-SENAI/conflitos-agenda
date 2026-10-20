@@ -10,7 +10,8 @@ public interface ISolicitacaoService
     Task<List<SolicitacaoResponseDto>> GetByPeriodoIdAsync(int periodoId);
     Task<List<SolicitacaoResponseDto>> GetByStatusAsync(StatusSolicitacao status);
     Task<Solicitacao> AddAsync(SolicitacaoInsertionDto solicitacao);
-    Task<Solicitacao?> UpdateAsync(int id, SolicitacaoUpdateDto solicitacao);
+    /// <param name="decisor">Usuário que aprova ou recusa; registrado quando o novo status é uma Decisão.</param>
+    Task<Solicitacao?> UpdateAsync(int id, SolicitacaoUpdateDto solicitacao, Usuario? decisor = null);
     Task<bool> DeleteAsync(int id);
     Task<bool> ValidateSolicitacaoAsync(int solicitacaoId);
 }

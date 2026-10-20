@@ -26,7 +26,7 @@ import { StatusChip } from '@/components/common/StatusChip';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
 import { solicitacaoDoPeriodo } from '@/domain/consultas';
 import { intervaloDoPeriodo } from '@/domain/validation/periodo';
-import { useColaboradores, useMutacao, usePeriodos, useProjetos, useSolicitacoes } from '@/hooks/useDados';
+import { useColaboradores, useMutacao, usePeriodos, useProjetos, useSolicitacoes, useUsuarios } from '@/hooks/useDados';
 import { formatarData, formatarDataHora } from '@/lib/datas';
 import { descreverPeriodo } from '../periodos/formatacao';
 import { PeriodoFormDialog } from '../periodos/PeriodoFormDialog';
@@ -53,6 +53,7 @@ export function ColaboradorDetalhePage() {
   const periodos = usePeriodos();
   const solicitacoes = useSolicitacoes();
   const projetos = useProjetos();
+  const usuarios = useUsuarios();
 
   const [editando, setEditando] = useState(false);
   const [novoPeriodo, setNovoPeriodo] = useState(false);
@@ -62,6 +63,7 @@ export function ColaboradorDetalhePage() {
   });
 
   const colaborador = colaboradores.data?.find((c) => c.id === id) ?? null;
+  const conta = usuarios.data?.find((u) => u.colaborador.id === id);
   const seus = useMemo(
     () => ({
       periodos: (periodos.data ?? [])
@@ -98,10 +100,14 @@ export function ColaboradorDetalhePage() {
               titulo={colaborador.nome}
               subtitulo={
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span>{colaborador.email}</span>
                   {colaborador.isCoordenador && (
                     <Chip icon={<VerifiedUserOutlinedIcon />} label="Coordenador" size="small" color="primary" variant="outlined" />
                   )}
+                  <span>
+                    {conta
+                      ? `Acesso: ${conta.nomeUsuario}${conta.ativo ? '' : ' (desativado)'}`
+                      : 'Sem acesso ao sistema'}
+                  </span>
                 </Stack>
               }
               acoes={

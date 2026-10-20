@@ -1,4 +1,4 @@
-import type { Colaborador, Periodo, Projeto, Solicitacao } from '@/domain/entities';
+import type { Colaborador, ContaUsuario, NivelAcesso, Periodo, Projeto, Solicitacao, UsuarioLogado } from '@/domain/entities';
 import type { DataISO } from '@/lib/datas';
 
 /**
@@ -8,7 +8,13 @@ import type { DataISO } from '@/lib/datas';
 
 export interface ColaboradorInput {
   nome: string;
-  email: string;
+}
+
+export interface UsuarioInput {
+  colaboradorId: number;
+  nomeUsuario: string;
+  senhaTemporaria: string;
+  isAdministrador: boolean;
 }
 
 export interface ProjetoInput {
@@ -78,12 +84,39 @@ export interface SolicitacaoService {
   recusar(id: number, observacao: string): Promise<Solicitacao>;
 }
 
+export interface AutenticacaoService {
+  usuarioAtual(): Promise<UsuarioLogado | null>;
+  entrar(nomeUsuario: string, senha: string): Promise<UsuarioLogado>;
+  sair(): Promise<void>;
+  trocarSenha(senhaAtual: string, novaSenha: string): Promise<UsuarioLogado>;
+}
+
+export interface UsuarioService {
+  listar(): Promise<ContaUsuario[]>;
+  criar(input: UsuarioInput): Promise<ContaUsuario>;
+  definirAdministrador(id: number, isAdministrador: boolean): Promise<ContaUsuario>;
+  redefinirSenha(id: number, senhaTemporaria: string): Promise<ContaUsuario>;
+  desativar(id: number): Promise<ContaUsuario>;
+  reativar(id: number): Promise<ContaUsuario>;
+}
+
+export interface CredencialDemonstracao {
+  nomeUsuario: string;
+  senha: string;
+  nivel: NivelAcesso;
+  nome: string;
+}
+
 /** Disponível apenas quando a fonte de dados é o mock. */
 export interface DemonstracaoService {
   restaurarDados(): Promise<void>;
+  /** Usuários fictícios mostrados na tela de login. */
+  credenciais: CredencialDemonstracao[];
 }
 
 export interface Servicos {
+  autenticacao: AutenticacaoService;
+  usuarios: UsuarioService;
   colaboradores: ColaboradorService;
   projetos: ProjetoService;
   periodos: PeriodoService;

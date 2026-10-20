@@ -9,8 +9,21 @@ import type { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 export interface ColaboradorRegistro {
   id: number;
   nome: string;
-  email: string;
   isCoordenador: boolean;
+}
+
+export interface UsuarioRegistro {
+  id: number;
+  nomeUsuario: string;
+  /** Hash da senha (ver `hashSenhaDemonstracao`); a senha nunca é guardada. */
+  senhaHash: string;
+  colaboradorId: number;
+  isAdministrador: boolean;
+  ativo: boolean;
+  precisaTrocarSenha: boolean;
+  tentativasFalhas: number;
+  /** Instante ISO até o qual o login fica bloqueado. */
+  bloqueadoAte: string | null;
 }
 
 export interface ProjetoRegistro {
@@ -31,17 +44,21 @@ export interface SolicitacaoRegistro {
   totalDias: number;
   abono: boolean;
   isPessoaCritica: boolean;
+  decididaPorId: number | null;
+  decididaEm: string | null;
 }
 
 export interface BancoMock {
   versao: number;
   colaboradores: ColaboradorRegistro[];
+  usuarios: UsuarioRegistro[];
   periodos: Periodo[];
   projetos: ProjetoRegistro[];
   solicitacoes: SolicitacaoRegistro[];
 }
 
-export const VERSAO_BANCO = 1;
+/** Versão 2: login, níveis de acesso, Decisão e Colaborador sem e-mail. */
+export const VERSAO_BANCO = 2;
 
 /** Subconjunto de `Storage`, para permitir armazenamento em memória nos testes. */
 export interface Armazenamento {
@@ -61,4 +78,18 @@ export function criarArmazenamentoEmMemoria(): Armazenamento {
 
 export function proximoId(registros: readonly { id: number }[]): number {
   return registros.reduce((maior, r) => Math.max(maior, r.id), 0) + 1;
+}
+
+/**
+ * Hash usado APENAS no modo demonstração, que roda inteiro no navegador. Evita guardar
+ * a senha em texto puro no localStorage, mas não é proteção real: na API, as senhas
+ * usam o PasswordHasher do ASP.NET Core (PBKDF2 com sal aleatório).
+ */
+export function hashSenhaDemonstracao(senha: string): string {
+  let hash = 0x811c9dc5;
+  for (const caractere of `conflitos-agenda:${senha}`) {
+    hash ^= caractere.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `demo$${(hash >>> 0).toString(16).padStart(8, '0')}`;
 }

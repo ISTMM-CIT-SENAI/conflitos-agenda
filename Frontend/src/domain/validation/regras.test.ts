@@ -69,7 +69,7 @@ describe('regras da Solicitação', () => {
 });
 
 describe('detecção de Conflito', () => {
-  const pessoa = (id: number): Colaborador => ({ id, nome: `P${id}`, email: `p${id}@x.com`, isCoordenador: false });
+  const pessoa = (id: number): Colaborador => ({ id, nome: `P${id}`, isCoordenador: false });
   const coordenador = { ...pessoa(99), isCoordenador: true };
   const periodo = (id: number, idColaborador: number, inicio: string, retorno: string): Periodo => ({
     id,

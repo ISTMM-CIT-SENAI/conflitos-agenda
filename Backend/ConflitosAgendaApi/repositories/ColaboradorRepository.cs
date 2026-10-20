@@ -83,4 +83,10 @@ using ConflitosAgendaApi.Dtos.Colaboradores;
         await _context.SaveChangesAsync();
         return colaborador;
     }
+    public Task<bool> ExisteComNomeAsync(string nome, int? ignorarId = null)
+    {
+        // A coluna usa a collation NOCASE, então a comparação ignora maiúsculas.
+        var nomeLimpo = nome.Trim();
+        return _context.Colaboradores.AnyAsync(c => c.Nome == nomeLimpo && c.Id != ignorarId);
+    }
 }

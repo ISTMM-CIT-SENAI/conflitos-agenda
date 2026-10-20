@@ -33,7 +33,9 @@ import { aplicarErrosDoServico } from '@/components/forms/errosDoServico';
 import { SeletorColaborador } from '@/components/forms/SeletorColaborador';
 import { periodosDisponiveis } from '@/domain/consultas';
 import type { Periodo, Solicitacao } from '@/domain/entities';
-import { podeEditar } from '@/domain/enums/statusSolicitacao';
+import { isStatusFinal } from '@/domain/enums/statusSolicitacao';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { ehAdministrador, podeEditarSolicitacao } from '@/domain/acesso';
 import {
   MAX_DIAS_ABONO,
   MAX_PERIODOS,
@@ -120,7 +122,10 @@ export function SolicitacaoFormPage() {
   const params = useParams();
   const id = params.id ? Number(params.id) : null;
   const [searchParams] = useSearchParams();
-  const colaboradorInicial = Number(searchParams.get('colaborador')) || null;
+  const usuario = useUsuarioLogado();
+  const admin = ehAdministrador(usuario);
+  // Quem não é administrador só cria solicitações para si mesmo.
+  const colaboradorInicial = admin ? Number(searchParams.get('colaborador')) || null : usuario.colaborador.id;
   const navigate = useNavigate();
   const servicos = useServicos();
 
@@ -218,9 +223,15 @@ export function SolicitacaoFormPage() {
       >
         {id !== null && !existente ? (
           <Alert severity="warning">Solicitação não encontrada.</Alert>
-        ) : existente && !podeEditar(existente.status) ? (
+        ) : existente && !podeEditarSolicitacao(usuario, existente) ? (
           <Alert severity="info" action={<Button component={RouterLink} to={`/solicitacoes/${existente.id}`}>Ver detalhes</Button>}>
-            Esta solicitação já está <StatusChip status={existente.status} /> e não pode mais ser editada.
+            {isStatusFinal(existente.status) ? (
+              <>
+                Esta solicitação já está <StatusChip status={existente.status} /> e não pode mais ser editada.
+              </>
+            ) : (
+              'Somente o próprio colaborador ou um administrador pode editar esta solicitação.'
+            )}
           </Alert>
         ) : (
           <form onSubmit={enviar} noValidate>
@@ -243,6 +254,8 @@ export function SolicitacaoFormPage() {
                             if (getValues('coordenadorId') === novo) setValue('coordenadorId', null);
                           }}
                           erro={fieldState.error?.message}
+                          desabilitado={!admin}
+                          ajuda={admin ? undefined : 'Você cria solicitações apenas para você mesmo.'}
                         />
                       )}
                     />

@@ -36,6 +36,19 @@ public sealed class Solicitacao
     public string? Observacao { get; private set; } 
     public bool Abono { get; private set; } = false;
     public bool isPessoaCritica { get; private set; } = false;
+    /// <summary>Usuário que aprovou ou recusou; pode ser o Coordenador escolhido ou um Administrador.</summary>
+    public int? DecididaPorId { get; private set; }
+    public Usuario? DecididaPor { get; private set; }
+    public DateTimeOffset? DecididaEm { get; private set; }
+
+    public bool EstaDecidida => Status is StatusSolicitacao.Aprovada or StatusSolicitacao.Recusada;
+
+    public void RegistrarDecisao(Usuario usuario, DateTimeOffset quando)
+    {
+        DecididaPor = usuario;
+        DecididaPorId = usuario.Id;
+        DecididaEm = quando;
+    }
 
     public bool ValidarAbono(IEnumerable<Periodo>? periodos = null)
     {

@@ -27,12 +27,16 @@ import { PageHeader } from '@/components/common/PageHeader';
 import { StatusChip } from '@/components/common/StatusChip';
 import { useFeedback } from '@/components/feedback/useFeedback';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
+import { StatusSolicitacao, isStatusFinal } from '@/domain/enums/statusSolicitacao';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { LinkColaborador } from '@/components/common/LinkColaborador';
 import {
-  StatusSolicitacao,
+  ehAdministrador,
   podeDecidir,
-  podeEditar,
+  podeEditarSolicitacao,
+  podeExcluirSolicitacao,
   podeValidarConflito,
-} from '@/domain/enums/statusSolicitacao';
+} from '@/domain/acesso';
 import { detectarConflitos } from '@/domain/validation/conflito';
 import { violacoesDaSolicitacao } from '@/domain/validation/solicitacao';
 import { useMutacao, useProjetos, useSolicitacao, useSolicitacoes } from '@/hooks/useDados';
@@ -60,6 +64,8 @@ export function SolicitacaoDetalhePage() {
   const voltarPara = (location.state as { voltarPara?: string } | null)?.voltarPara ?? '';
   const servicos = useServicos();
   const feedback = useFeedback();
+  const usuario = useUsuarioLogado();
+  const admin = ehAdministrador(usuario);
 
   const consulta = useSolicitacao(id);
   const todas = useSolicitacoes();
@@ -108,16 +114,24 @@ export function SolicitacaoDetalhePage() {
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <StatusChip status={solicitacao.status} size="medium" />
                   <span>Criada em {formatarDataHora(solicitacao.criadaEm)}</span>
+                  {solicitacao.decididaPor && solicitacao.decididaEm && (
+                    <span>
+                      · {solicitacao.status === StatusSolicitacao.Aprovada ? 'Aprovada' : 'Recusada'} por{' '}
+                      <strong>{solicitacao.decididaPor.nomeColaborador}</strong>
+                      {solicitacao.decididaPor.isAdministrador ? ' (administrador)' : ''} em{' '}
+                      {formatarDataHora(solicitacao.decididaEm)}
+                    </span>
+                  )}
                 </Stack>
               }
               acoes={
                 <>
-                  {podeValidarConflito(solicitacao.status) && (
+                  {podeValidarConflito(usuario, solicitacao) && (
                     <Button variant="outlined" startIcon={<RuleIcon />} onClick={executarValidacao} loading={validar.isPending} disabled={processando}>
                       Validar conflitos
                     </Button>
                   )}
-                  {podeDecidir(solicitacao.status) && (
+                  {podeDecidir(usuario, solicitacao) && (
                     <>
                       <Button variant="contained" color="success" startIcon={<CheckCircleOutlineIcon />} onClick={() => setAcao('aprovar')} disabled={processando}>
                         Aprovar
@@ -153,16 +167,12 @@ export function SolicitacaoDetalhePage() {
                   <Grid container spacing={2.5}>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Campo rotulo="Colaborador">
-                        <Link component={RouterLink} to={`/colaboradores/${solicitacao.colaborador.id}`}>
-                          {solicitacao.colaborador.nome}
-                        </Link>
+                        <LinkColaborador id={solicitacao.colaborador.id} nome={solicitacao.colaborador.nome} underline="always" />
                       </Campo>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
                       <Campo rotulo="Coordenador">
-                        <Link component={RouterLink} to={`/colaboradores/${solicitacao.coordenador.id}`}>
-                          {solicitacao.coordenador.nome}
-                        </Link>
+                        <LinkColaborador id={solicitacao.coordenador.id} nome={solicitacao.coordenador.nome} underline="always" />
                       </Campo>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 4 }}>
@@ -204,6 +214,7 @@ export function SolicitacaoDetalhePage() {
 
               <Grid size={{ xs: 12, md: 5 }}>
                 <Stack spacing={2}>
+                  {admin && (
                   <Paper sx={{ p: 2.5 }}>
                     <Typography variant="h6" component="h2" sx={{ mb: 1 }}>
                       Sobreposições com pessoas críticas
@@ -233,6 +244,7 @@ export function SolicitacaoDetalhePage() {
                       Use “Validar conflitos” para registrar o resultado no status da solicitação.
                     </Typography>
                   </Paper>
+                  )}
 
                   <Paper sx={{ p: 2.5 }}>
                     <Typography variant="h6" component="h2" sx={{ mb: 1.5 }}>
@@ -244,17 +256,24 @@ export function SolicitacaoDetalhePage() {
                         startIcon={<EditOutlinedIcon />}
                         component={RouterLink}
                         to={`/solicitacoes/${solicitacao.id}/editar`}
-                        disabled={!podeEditar(solicitacao.status) || processando}
+                        disabled={!podeEditarSolicitacao(usuario, solicitacao) || processando}
                       >
                         Editar
                       </Button>
-                      <Button color="error" startIcon={<DeleteOutlinedIcon />} onClick={() => setAcao('excluir')} disabled={processando}>
+                      <Button
+                        color="error"
+                        startIcon={<DeleteOutlinedIcon />}
+                        onClick={() => setAcao('excluir')}
+                        disabled={!podeExcluirSolicitacao(usuario, solicitacao) || processando}
+                      >
                         Excluir
                       </Button>
                     </Stack>
-                    {!podeEditar(solicitacao.status) && (
+                    {!podeEditarSolicitacao(usuario, solicitacao) && (
                       <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
-                        Solicitações aprovadas ou recusadas não podem ser editadas.
+                        {isStatusFinal(solicitacao.status)
+                          ? 'Solicitações aprovadas ou recusadas não podem ser editadas.'
+                          : 'Somente o próprio colaborador ou um administrador pode editar esta solicitação.'}
                       </Typography>
                     )}
                   </Paper>

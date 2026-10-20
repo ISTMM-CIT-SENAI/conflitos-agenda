@@ -11,6 +11,7 @@ export const chaves = {
   periodos: ['dados', 'periodos'] as const,
   solicitacoes: ['dados', 'solicitacoes'] as const,
   solicitacao: (id: number) => ['dados', 'solicitacoes', id] as const,
+  usuarios: ['dados', 'usuarios'] as const,
 };
 
 export function useColaboradores() {
@@ -31,6 +32,12 @@ export function usePeriodos() {
 export function useSolicitacoes() {
   const { solicitacoes } = useServicos();
   return useQuery({ queryKey: chaves.solicitacoes, queryFn: () => solicitacoes.listar() });
+}
+
+/** Contas de acesso; só consulta quando `habilitado` (Administrador). */
+export function useUsuarios(habilitado = true) {
+  const { usuarios } = useServicos();
+  return useQuery({ queryKey: chaves.usuarios, queryFn: () => usuarios.listar(), enabled: habilitado });
 }
 
 export function useSolicitacao(id: number) {

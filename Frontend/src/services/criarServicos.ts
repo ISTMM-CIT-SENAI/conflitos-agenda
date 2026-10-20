@@ -21,6 +21,7 @@ import type {
   Servicos,
   SolicitacaoInput,
 } from './contracts/servicos';
+import { validarNomeUsuario, validarSenha } from '@/domain/acesso';
 import { ErroNaoEncontrado, ErroRegraNegocio, type Violacao } from './erros';
 
 function exigir<T>(valor: T | null | undefined, mensagem: string): T {
@@ -33,7 +34,6 @@ function colaboradorParaPayload(colaborador: Colaborador): Colaborador {
   return {
     id: colaborador.id,
     nome: colaborador.nome,
-    email: colaborador.email,
     isCoordenador: colaborador.isCoordenador,
     projetos: [],
   };
@@ -199,13 +199,45 @@ export function criarServicos(
   return {
     demonstracao: opcoes.demonstracao ?? null,
 
+    autenticacao: {
+      usuarioAtual: () => api.autenticacao.eu(),
+      entrar: (nomeUsuario, senha) => api.autenticacao.entrar(nomeUsuario.trim(), senha),
+      sair: () => api.autenticacao.sair(),
+      async trocarSenha(senhaAtual, novaSenha) {
+        const erro = validarSenha(novaSenha);
+        if (erro) throw ErroRegraNegocio.deViolacoes([{ campo: 'novaSenha', mensagem: erro }]);
+        return api.autenticacao.trocarSenha(senhaAtual, novaSenha);
+      },
+    },
+
+    usuarios: {
+      listar: () => api.usuarios.listar(),
+      async criar(input) {
+        const violacoes: Violacao[] = [];
+        const erroNome = validarNomeUsuario(input.nomeUsuario);
+        if (erroNome) violacoes.push({ campo: 'nomeUsuario', mensagem: erroNome });
+        const erroSenha = validarSenha(input.senhaTemporaria);
+        if (erroSenha) violacoes.push({ campo: 'senhaTemporaria', mensagem: erroSenha });
+        if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
+        return api.usuarios.criar({ ...input, nomeUsuario: input.nomeUsuario.trim() });
+      },
+      definirAdministrador: (id, isAdministrador) => api.usuarios.definirAdministrador(id, isAdministrador),
+      async redefinirSenha(id, senhaTemporaria) {
+        const erro = validarSenha(senhaTemporaria);
+        if (erro) throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaTemporaria', mensagem: erro }]);
+        return api.usuarios.redefinirSenha(id, senhaTemporaria);
+      },
+      desativar: (id) => api.usuarios.desativar(id),
+      reativar: (id) => api.usuarios.reativar(id),
+    },
+
     colaboradores: {
       listar: () => api.colaboradores.listar(),
       buscarPorId: (id) => api.colaboradores.buscar(id),
-      criar: (input) => api.colaboradores.criar({ nome: input.nome.trim(), email: input.email.trim() }),
+      criar: (input) => api.colaboradores.criar({ nome: input.nome.trim() }),
       async atualizar(id, input) {
         exigir(await api.colaboradores.buscar(id), 'Colaborador não encontrado.');
-        return api.colaboradores.atualizar(id, { nome: input.nome.trim(), email: input.email.trim() });
+        return api.colaboradores.atualizar(id, { nome: input.nome.trim() });
       },
       async excluir(id) {
         const [periodos, solicitacoes] = await Promise.all([api.periodos.listar(), api.solicitacoes.listar()]);
@@ -226,7 +258,7 @@ export function criarServicos(
       },
       async tornarCoordenador(id) {
         const colaborador = exigir(await api.colaboradores.buscar(id), 'Colaborador não encontrado.');
-        return api.colaboradores.tornarCoordenador(id, { nome: colaborador.nome, email: colaborador.email });
+        return api.colaboradores.tornarCoordenador(id, { nome: colaborador.nome });
       },
     },
 

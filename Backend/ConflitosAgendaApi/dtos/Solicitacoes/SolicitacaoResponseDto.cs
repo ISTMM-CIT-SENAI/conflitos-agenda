@@ -16,6 +16,9 @@ public class SolicitacaoResponseDto
     public int TotalDias { get; private set; }
     public bool Abono { get; private set; } = false;
     public bool isPessoaCritica { get; private set; } = false;
+    /// <summary>Quem aprovou ou recusou; nulo enquanto não houver Decisão.</summary>
+    public DecisorDto? DecididaPor { get; private set; }
+    public DateTimeOffset? DecididaEm { get; private set; }
 
     public SolicitacaoResponseDto(Solicitacao solicitacao)
     {
@@ -29,5 +32,23 @@ public class SolicitacaoResponseDto
         this.TotalDias = solicitacao.TotalDias;
         this.Abono = solicitacao.Abono;
         this.isPessoaCritica = solicitacao.isPessoaCritica;
+        this.DecididaPor = solicitacao.DecididaPor is null ? null : new DecisorDto(solicitacao.DecididaPor);
+        this.DecididaEm = solicitacao.DecididaEm;
+    }
+}
+
+public class DecisorDto
+{
+    public int UsuarioId { get; }
+    public string NomeUsuario { get; }
+    public string NomeColaborador { get; }
+    public bool IsAdministrador { get; }
+
+    public DecisorDto(Usuario usuario)
+    {
+        UsuarioId = usuario.Id;
+        NomeUsuario = usuario.NomeUsuario;
+        NomeColaborador = usuario.Colaborador?.Nome ?? usuario.NomeUsuario;
+        IsAdministrador = usuario.IsAdministrador;
     }
 }

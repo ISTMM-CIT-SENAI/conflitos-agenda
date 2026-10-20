@@ -34,6 +34,30 @@ export class ErroNaoEncontrado extends ErroServico {
   }
 }
 
+/** Sem sessão válida (HTTP 401): é preciso entrar novamente. */
+export class ErroNaoAutenticado extends ErroServico {
+  constructor(mensagem = 'Sua sessão expirou. Entre novamente.') {
+    super(mensagem);
+    this.name = 'ErroNaoAutenticado';
+  }
+}
+
+/** O nível de acesso não permite a operação (HTTP 403). */
+export class ErroAcessoNegado extends ErroServico {
+  constructor(mensagem = 'Você não tem permissão para realizar esta operação.') {
+    super(mensagem);
+    this.name = 'ErroAcessoNegado';
+  }
+}
+
+/** A senha é temporária: o Usuário precisa definir uma nova antes de continuar. */
+export class ErroTrocaSenhaObrigatoria extends ErroServico {
+  constructor(mensagem = 'Defina uma nova senha para continuar.') {
+    super(mensagem);
+    this.name = 'ErroTrocaSenhaObrigatoria';
+  }
+}
+
 /** Falha de comunicação com a API. */
 export class ErroRede extends ErroServico {
   constructor(mensagem = 'Não foi possível se comunicar com o servidor. Verifique sua conexão.') {

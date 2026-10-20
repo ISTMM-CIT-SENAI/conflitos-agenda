@@ -10,6 +10,8 @@ import classicThemePlugin from '@fullcalendar/react/themes/classic';
 import { Box, Button, Chip, Grid, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useUsuarioLogado } from '@/app/providers/useSessao';
+import { ehAdministrador } from '@/domain/acesso';
 import { PageHeader } from '@/components/common/PageHeader';
 import { HEX_SEM_SOLICITACAO, VISUAL_STATUS } from '@/components/common/status';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
@@ -22,17 +24,23 @@ import { useColaboradores, usePeriodos, useProjetos, useSolicitacoes } from '@/h
 import { useFiltrosUrl } from '@/hooks/useFiltrosUrl';
 
 const SEM_SOLICITACAO = 'sem';
+/** Ausência planejada de um colega de projeto: só nome e datas, sem detalhes da solicitação. */
+const COLEGA = 'colega';
+const HEX_COLEGA = '#b0bec5';
 const COR_CONFLITO = '#c62828';
 
 type ChaveFiltro = 'colaborador' | 'status';
 
 interface DadosEvento {
   solicitacaoId: number | null;
+  deColega: boolean;
   colaboradorId: number;
 }
 
 export function CalendarioPage() {
   const navigate = useNavigate();
+  const usuario = useUsuarioLogado();
+  const admin = ehAdministrador(usuario);
   const filtros = useFiltrosUrl<ChaveFiltro>();
   const colaboradorId = filtros.obterNumero('colaborador');
   const statusSelecionados = filtros.obterLista('status');
@@ -63,14 +71,15 @@ export function CalendarioPage() {
       .filter((p) => colaboradorId === null || p.idColaborador === colaboradorId)
       .flatMap((p) => {
         const solicitacao = solicitacaoDoPeriodo(p.id, solicitacoes.data ?? []);
-        const chaveStatus = solicitacao ? String(solicitacao.status) : SEM_SOLICITACAO;
+        const deColega = !solicitacao && !admin && p.idColaborador !== usuario.colaborador.id;
+        const chaveStatus = solicitacao ? String(solicitacao.status) : deColega ? COLEGA : SEM_SOLICITACAO;
         if (statusSelecionados.length > 0 && !statusSelecionados.includes(chaveStatus)) return [];
 
         const conflito = periodosEmConflito.has(p.id);
-        const cor = solicitacao ? VISUAL_STATUS[solicitacao.status].hex : HEX_SEM_SOLICITACAO;
+        const cor = solicitacao ? VISUAL_STATUS[solicitacao.status].hex : deColega ? HEX_COLEGA : HEX_SEM_SOLICITACAO;
         const intervalo = intervaloDoPeriodo(p);
         const nome = nomes.get(p.idColaborador) ?? `Colaborador #${p.idColaborador}`;
-        const dados: DadosEvento = { solicitacaoId: solicitacao?.id ?? null, colaboradorId: p.idColaborador };
+        const dados: DadosEvento = { solicitacaoId: solicitacao?.id ?? null, colaboradorId: p.idColaborador, deColega };
         return [
           {
             id: String(p.id),
@@ -80,22 +89,25 @@ export function CalendarioPage() {
             end: intervalo.retorno,
             allDay: true,
             color: cor,
-            contrastColor: '#ffffff',
-            className: conflito ? 'evento-conflito' : '',
+            contrastColor: deColega ? '#263238' : '#ffffff',
+            className: [conflito ? 'evento-conflito' : '', deColega ? 'evento-colega' : ''].join(' ').trim(),
             extendedProps: dados,
           },
         ];
       });
-  }, [periodos.data, solicitacoes.data, colaboradores.data, colaboradorId, statusSelecionados, periodosEmConflito]);
+  }, [periodos.data, solicitacoes.data, colaboradores.data, colaboradorId, statusSelecionados, periodosEmConflito, admin, usuario.colaborador.id]);
 
   const aoClicar = (info: EventClickInfo) => {
     const dados = info.event.extendedProps as DadosEvento;
-    navigate(dados.solicitacaoId ? `/solicitacoes/${dados.solicitacaoId}` : `/colaboradores/${dados.colaboradorId}`);
+    if (dados.deColega) return;
+    if (dados.solicitacaoId) navigate(`/solicitacoes/${dados.solicitacaoId}`);
+    else navigate(admin ? `/colaboradores/${dados.colaboradorId}` : '/periodos');
   };
 
   const opcoesStatus = [
     ...TODOS_STATUS.map((s) => ({ valor: String(s), rotulo: VISUAL_STATUS[s].rotulo, cor: VISUAL_STATUS[s].hex })),
     { valor: SEM_SOLICITACAO, rotulo: 'Sem solicitação', cor: HEX_SEM_SOLICITACAO },
+    ...(admin ? [] : [{ valor: COLEGA, rotulo: 'Colega de projeto', cor: HEX_COLEGA }]),
   ];
 
   return (

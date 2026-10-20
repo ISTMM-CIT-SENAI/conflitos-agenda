@@ -23,6 +23,22 @@ Configurada em `.env` (modelo em `.env.example`):
 
 No modo mock, o menu lateral exibe o botão **Restaurar dados**, que recarrega a massa de demonstração (as datas são relativas ao dia atual).
 
+## Login e níveis de acesso
+
+Todas as telas exigem login (usuário e senha, sem e-mail). Com a API, a sessão é um cookie `HttpOnly` emitido por ela; no primeiro acesso em desenvolvimento, use `admin` / `admin` e defina uma nova senha.
+
+No modo demonstração, a tela de login lista três usuários fictícios, todos com a senha `demo123`:
+
+| Usuário | Nível | Colaborador |
+|---|---|---|
+| `admin` | Administrador | Ana Paula Ribeiro |
+| `coordenador` | Coordenador | Bruno Carvalho |
+| `colaborador` | Colaborador | Carla Mendes |
+
+- `src/domain/acesso.ts`: o que cada nível pode fazer. Espelha `RegrasAcesso` do backend; a API é quem garante as regras, e o frontend as usa para esconder ações e para o modo demonstração se comportar igual à API.
+- `src/app/providers/SessaoProvider.tsx`: quem está logado. Um 401 em qualquer consulta leva de volta ao login, e o 403 de troca obrigatória leva à tela de nova senha.
+- `src/components/layout/RotaProtegida.tsx`: exige login, força a troca da senha temporária e restringe Colaboradores, Projetos e Usuários ao Administrador.
+
 ## Arquitetura
 
 ```text

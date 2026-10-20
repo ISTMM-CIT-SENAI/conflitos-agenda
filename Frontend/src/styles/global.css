@@ -19,3 +19,9 @@ body,
 .calendario-ausencias .fc-event {
   cursor: pointer;
 }
+
+/* Ausência de colega: sem detalhes, não clicável. */
+.calendario-ausencias .evento-colega {
+  cursor: default;
+  opacity: 0.85;
+}

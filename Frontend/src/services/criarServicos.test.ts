@@ -5,19 +5,23 @@ import type { Servicos } from './contracts/servicos';
 import { criarServicos } from './criarServicos';
 import { ErroRegraNegocio } from './erros';
 import { criarArmazenamentoEmMemoria } from './mocks/banco';
-import { criarDadosDemonstracao } from './mocks/dadosDemonstracao';
+import { CREDENCIAIS_DEMONSTRACAO, SENHA_DEMONSTRACAO, criarDadosDemonstracao } from './mocks/dadosDemonstracao';
 import { criarGatewayMock } from './mocks/gatewayMock';
 
 const HOJE = '2026-10-14';
 
 let servicos: Servicos;
 
-beforeEach(() => {
+beforeEach(async () => {
   const mock = criarGatewayMock({
     armazenamento: criarArmazenamentoEmMemoria(),
     criarDadosIniciais: () => criarDadosDemonstracao(HOJE),
   });
-  servicos = criarServicos(mock, { demonstracao: { restaurarDados: mock.restaurarDadosDemonstracao } });
+  servicos = criarServicos(mock, {
+    demonstracao: { restaurarDados: mock.restaurarDadosDemonstracao, credenciais: CREDENCIAIS_DEMONSTRACAO },
+  });
+  // Estes testes exercitam as regras de negócio com acesso total.
+  await servicos.autenticacao.entrar('admin', SENHA_DEMONSTRACAO);
 });
 
 async function esperarErroRegra(promessa: Promise<unknown>): Promise<ErroRegraNegocio> {
@@ -52,7 +56,7 @@ describe('Colaboradores', () => {
   });
 
   it('exclui colaborador sem vínculos e o remove dos projetos', async () => {
-    const novo = await servicos.colaboradores.criar({ nome: 'Ivo', email: 'ivo@example.com' });
+    const novo = await servicos.colaboradores.criar({ nome: 'Ivo' });
     await servicos.projetos.atualizar(1, { nome: 'Portal do Cliente', colaboradorIds: [1, 3, 4, 5, novo.id], pessoaCriticaIds: [3, 4] });
     await servicos.colaboradores.excluir(novo.id);
     const projeto = await servicos.projetos.buscarPorId(1);

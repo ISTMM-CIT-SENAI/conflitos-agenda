@@ -11,6 +11,18 @@ dotnet run --launch-profile http
 
 O banco é **SQLite**: o arquivo `conflitos-agenda.db` é criado na pasta da API e as migrations pendentes são aplicadas automaticamente na inicialização. Para usar outro arquivo ou caminho (por exemplo, um volume persistente no servidor), defina a variável `ConnectionStrings__DefaultConnection`, por exemplo `Data Source=/dados/conflitos-agenda.db`. Para recomeçar do zero, pare a API e apague os arquivos `conflitos-agenda.db*`.
 
+### Primeiro administrador
+
+Num banco sem usuários, a API cria na inicialização o primeiro **Administrador** e o Colaborador dele, a partir da configuração:
+
+| Chave | Variável de ambiente | Desenvolvimento |
+|---|---|---|
+| `Admin:Usuario` | `Admin__Usuario` | `admin` |
+| `Admin:SenhaInicial` | `Admin__SenhaInicial` | `admin` |
+| `Admin:NomeCompleto` | `Admin__NomeCompleto` | `Administrador do Setor` |
+
+Os valores de desenvolvimento estão em `appsettings.Development.json`. A senha inicial é temporária: no primeiro login é obrigatório defini-la de novo. Em produção, defina as variáveis de ambiente; sem elas, ninguém consegue entrar.
+
 Perfis configurados em `Backend/ConflitosAgendaApi/Properties/launchSettings.json`:
 
 ```text
@@ -43,6 +55,64 @@ Content-Type: application/json
 - Respostas `204 No Content` não possuem corpo.
 - Os DTOs de projeto e solicitação recebem objetos de `Colaborador` e `Periodo`, mas **apenas o `id` é usado**: os registros são carregados do banco, e um ID inexistente retorna `400`. Os demais campos são aceitos por compatibilidade e ignorados.
 - Erros de regra de negócio retornam `400`, registros inexistentes `404` e exclusões bloqueadas por vínculos `409`, todos no formato ProblemDetails com a mensagem no campo `detail`.
+
+## Autenticação e níveis de acesso
+
+Toda rota exige login, exceto `POST /api/Auth/login` e `POST /api/Auth/logout`. A sessão é um cookie `HttpOnly` (`conflitos-agenda.sessao`, `SameSite=Strict`) emitido pela API, que expira após 8 horas sem uso. As senhas são guardadas apenas como hash (PasswordHasher do ASP.NET Core: PBKDF2 com HMAC-SHA512 e sal aleatório).
+
+| Situação | Resposta |
+|---|---|
+| Sem sessão ou sessão inválida | `401 Unauthorized` |
+| Nível de acesso insuficiente | `403 Forbidden` com a mensagem em `detail` |
+| Senha temporária ainda não trocada | `403 Forbidden` com `type: "troca-de-senha-obrigatoria"`; só as rotas de `/api/Auth` respondem |
+
+**Regras de credenciais:** nome de usuário de 3 a 30 caracteres (letras, números, `.`, `_`, `-`), único e sem diferenciar maiúsculas; senha com no mínimo 8 caracteres; após 5 tentativas erradas, o login fica bloqueado por 15 minutos. Trocar ou redefinir a senha, ou desativar o usuário, encerra as sessões abertas dele.
+
+**Níveis de acesso.** O nível é **Administrador** quando marcado no Usuário; senão, é derivado do Colaborador ligado: **Coordenador** se ele for coordenador, **Colaborador** caso contrário.
+
+| Ação | Administrador | Coordenador | Colaborador |
+|---|:---:|:---:|:---:|
+| Criar/alterar/excluir colaboradores e projetos; tornar coordenador; gerenciar usuários | ✅ | ❌ | ❌ |
+| Listar colaboradores e projetos | ✅ | ✅ | ✅ |
+| Ver solicitações | todas | próprias e atribuídas a ele | próprias |
+| Ver períodos | todos | próprios + ausências planejadas dos colegas de projeto | idem |
+| Criar/alterar períodos e solicitações | de qualquer colaborador | próprios | próprios |
+| Aprovar/recusar (status 2 e 3) | qualquer uma, exceto a própria | atribuídas a ele, exceto a própria | ❌ |
+| Excluir solicitação | qualquer uma | própria, antes da decisão | própria, antes da decisão |
+
+O Coordenador que não é dono da solicitação só pode mudar o status (validar, aprovar, recusar), não o conteúdo. Ao aprovar ou recusar, a solicitação registra quem decidiu (`decididaPor`) e quando (`decididaEm`).
+
+### Endpoints de autenticação
+
+| Método | Rota | Corpo | Resposta |
+|---|---|---|---|
+| `POST` | `/api/Auth/login` | `{ "nomeUsuario", "senha" }` | `200` com o usuário logado; `401` com a mensagem (credenciais inválidas ou bloqueio) |
+| `POST` | `/api/Auth/logout` | — | `204` |
+| `GET` | `/api/Auth/eu` | — | `200` com o usuário logado; `401` sem sessão |
+| `POST` | `/api/Auth/trocar-senha` | `{ "senhaAtual", "novaSenha" }` | `200` com o usuário logado |
+
+Usuário logado:
+
+```json
+{
+  "id": 1,
+  "nomeUsuario": "admin",
+  "nivel": "administrador",
+  "precisaTrocarSenha": false,
+  "colaborador": { "id": 1, "nome": "Administrador do Setor", "isCoordenador": true }
+}
+```
+
+### Endpoints de usuários (somente Administrador)
+
+| Método | Rota | Corpo | Observação |
+|---|---|---|---|
+| `GET` | `/api/Usuario` | — | Lista as contas, com situação (`ativo`, `bloqueado`, `precisaTrocarSenha`) |
+| `POST` | `/api/Usuario` | `{ "colaboradorId", "nomeUsuario", "senhaTemporaria", "isAdministrador" }` | Cada colaborador tem no máximo um usuário |
+| `PUT` | `/api/Usuario/{id}/administrador` | `{ "isAdministrador" }` | Ninguém remove o próprio acesso de administrador |
+| `POST` | `/api/Usuario/{id}/redefinir-senha` | `{ "senhaTemporaria" }` | Obriga a troca no próximo login |
+| `POST` | `/api/Usuario/{id}/desativar` | — | Não é possível desativar a si mesmo nem o último administrador ativo |
+| `POST` | `/api/Usuario/{id}/reativar` | — | |
 
 ## Resumo dos endpoints
 
@@ -112,8 +182,7 @@ Corpo:
 
 ```json
 {
-  "nome": "Maria Silva",
-  "email": "maria.silva@example.com"
+  "nome": "Maria Silva"
 }
 ```
 
@@ -121,8 +190,7 @@ Campos:
 
 | Campo | Tipo | Obrigatório | Observação |
 |---|---|---:|---|
-| `nome` | `string` | Sim | Nome do colaborador |
-| `email` | `string` | Sim | Deve estar em formato de e-mail |
+| `nome` | `string` | Sim | Nome completo; único, sem diferenciar maiúsculas. O sistema não guarda e-mail (ver ADR 0003) |
 
 Resposta: `201 Created`.
 
@@ -136,8 +204,7 @@ Corpo:
 
 ```json
 {
-  "nome": "Maria Souza",
-  "email": "maria.souza@example.com"
+  "nome": "Maria Souza"
 }
 ```
 
@@ -156,6 +223,8 @@ Resposta:
 
 - `204 No Content` quando excluído;
 - `404 Not Found` quando não encontrado.
+- `400 Bad Request` quando o colaborador tem acesso ativo ao sistema (desative o usuário antes; um usuário já desativado é excluído junto);
+- `409 Conflict` quando ainda há períodos, solicitações ou decisões vinculados.
 
 ### Tornar colaborador coordenador
 
@@ -167,12 +236,11 @@ O controller recebe `ColaboradorUpdateDto`, portanto o corpo esperado atualmente
 
 ```json
 {
-  "nome": "Maria Silva",
-  "email": "maria.silva@example.com"
+  "nome": "Maria Silva"
 }
 ```
 
-Os valores de `nome` e `email` são recebidos, mas a operação utiliza apenas o identificador para marcar o colaborador como coordenador.
+O valor de `nome` é recebido, mas a operação utiliza apenas o identificador para marcar o colaborador como coordenador.
 
 Resposta:
 
@@ -342,7 +410,6 @@ Corpo:
     {
       "id": 2,
       "nome": "João Santos",
-      "email": "joao.santos@example.com",
       "isCoordenador": false
     }
   ],
@@ -350,7 +417,6 @@ Corpo:
     {
       "id": 1,
       "nome": "Maria Silva",
-      "email": "maria.silva@example.com",
       "isCoordenador": true
     }
   ]
@@ -371,7 +437,6 @@ Objeto `Colaborador`:
 |---|---|
 | `id` | `int` |
 | `nome` | `string` |
-| `email` | `string` |
 | `isCoordenador` | `bool` |
 
 Resposta: `201 Created`.
@@ -392,7 +457,6 @@ O corpo possui o mesmo formato da criação:
     {
       "id": 1,
       "nome": "Maria Silva",
-      "email": "maria.silva@example.com",
       "isCoordenador": true
     }
   ]
@@ -519,7 +583,6 @@ Corpo:
   "colaborador": {
     "id": 1,
     "nome": "Maria Silva",
-    "email": "maria.silva@example.com",
     "isCoordenador": false
   },
   "periodos": [
@@ -535,7 +598,6 @@ Corpo:
   "coordenador": {
     "id": 2,
     "nome": "João Santos",
-    "email": "joao.santos@example.com",
     "isCoordenador": true
   },
   "observacao": "Solicitação de ausência.",
@@ -580,7 +642,6 @@ Corpo:
   "colaborador": {
     "id": 1,
     "nome": "Maria Silva",
-    "email": "maria.silva@example.com",
     "isCoordenador": false
   },
   "periodos": [
@@ -596,7 +657,6 @@ Corpo:
   "coordenador": {
     "id": 2,
     "nome": "João Santos",
-    "email": "joao.santos@example.com",
     "isCoordenador": true
   },
   "observacao": "Período atualizado.",
@@ -642,7 +702,7 @@ Resposta:
 ## Divergências atuais documentadas
 
 1. `GET /api/Solicitacao/projeto/{projetoId}` possui nome de projeto, mas atualmente filtra por período.
-2. O endpoint `PUT /api/Colaborador/{id}/coordinator` recebe `nome` e `email`, embora use apenas o ID para tornar o colaborador coordenador.
+2. O endpoint `PUT /api/Colaborador/{id}/coordinator` recebe `nome`, embora use apenas o ID para tornar o colaborador coordenador.
 3. Projetos e solicitações recebem objetos completos nos payloads, embora só o `id` seja usado.
 4. `PUT /api/Solicitacao/{id}/validate` retorna apenas um booleano e não altera o status da solicitação.
 5. A validação de conflito só considera solicitantes que são pessoas críticas e compara com todos os períodos das outras pessoas críticas, inclusive os de solicitações recusadas.

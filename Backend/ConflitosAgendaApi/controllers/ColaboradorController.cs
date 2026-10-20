@@ -1,3 +1,5 @@
+using ConflitosAgendaApi.Services.Acesso;
+using Microsoft.AspNetCore.Authorization;
 using ConflitosAgendaApi.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using ConflitosAgendaApi.Dtos.Colaboradores;
@@ -36,6 +38,7 @@ public class ColaboradorController : ControllerBase
         return Ok(colaboradores.Select(c => new ColaboradorResponseDto(c)));
     }
 
+    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
     [HttpPost]
     public async Task<IActionResult> Add(ColaboradorInsertionDto dto)
     {
@@ -49,6 +52,7 @@ public class ColaboradorController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = novoColaborador.Id }, new ColaboradorResponseDto(novoColaborador));
     }
 
+    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, ColaboradorUpdateDto dto)
     {
@@ -62,6 +66,7 @@ public class ColaboradorController : ControllerBase
         return Ok(new ColaboradorResponseDto(colaboradorAtualizado));
     }
 
+    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -75,6 +80,7 @@ public class ColaboradorController : ControllerBase
         await _colaboradorService.DeleteAsync(id);
         return NoContent();
     }
+    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
     [HttpPut("{id}/coordinator")]
     public async Task<IActionResult> TornarCoordenador(int id, ColaboradorUpdateDto dto)
     {

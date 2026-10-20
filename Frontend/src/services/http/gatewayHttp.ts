@@ -1,6 +1,14 @@
-import type { Colaborador, Periodo, Projeto, Solicitacao } from '@/domain/entities';
+import type { Colaborador, ContaUsuario, Periodo, Projeto, Solicitacao, UsuarioLogado } from '@/domain/entities';
 import type { ApiGateway, ColaboradorDto, PeriodoDto, ProjetoDto, RecursoApi, SolicitacaoDto } from '../contracts/api';
-import { ErroNaoEncontrado, ErroRede, ErroRegraNegocio, ErroServico } from '../erros';
+import {
+  ErroAcessoNegado,
+  ErroNaoAutenticado,
+  ErroNaoEncontrado,
+  ErroRede,
+  ErroRegraNegocio,
+  ErroServico,
+  ErroTrocaSenhaObrigatoria,
+} from '../erros';
 
 type Metodo = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -59,6 +67,13 @@ export function criarGatewayHttp(baseUrl: string): ApiGateway {
     const conteudo = await lerCorpo(resposta);
     if (resposta.ok) return conteudo as T;
 
+    if (resposta.status === 401) throw new ErroNaoAutenticado(extrairMensagem(conteudo, 'Sua sessão expirou. Entre novamente.'));
+    if (resposta.status === 403) {
+      const tipo = typeof conteudo === 'object' && conteudo !== null ? (conteudo as { type?: unknown }).type : undefined;
+      if (tipo === 'troca-de-senha-obrigatoria') throw new ErroTrocaSenhaObrigatoria();
+      throw new ErroAcessoNegado(extrairMensagem(conteudo, 'Você não tem permissão para realizar esta operação.'));
+    }
+
     if (resposta.status === 404) throw new ErroNaoEncontrado(extrairMensagem(conteudo, 'Registro não encontrado.'));
     if (resposta.status === 400) throw new ErroRegraNegocio(extrairMensagem(conteudo, 'Dados inválidos.'));
     throw new ErroHttp(resposta.status, extrairMensagem(conteudo, `Erro no servidor (HTTP ${resposta.status}).`));
@@ -82,6 +97,30 @@ export function criarGatewayHttp(baseUrl: string): ApiGateway {
   }
 
   return {
+    autenticacao: {
+      async eu() {
+        try {
+          return await requisitar<UsuarioLogado>('GET', '/api/Auth/eu');
+        } catch (erro) {
+          if (erro instanceof ErroNaoAutenticado) return null;
+          throw erro;
+        }
+      },
+      entrar: (nomeUsuario, senha) => requisitar<UsuarioLogado>('POST', '/api/Auth/login', { nomeUsuario, senha }),
+      sair: () => requisitar<void>('POST', '/api/Auth/logout'),
+      trocarSenha: (senhaAtual, novaSenha) =>
+        requisitar<UsuarioLogado>('POST', '/api/Auth/trocar-senha', { senhaAtual, novaSenha }),
+    },
+    usuarios: {
+      listar: () => requisitar<ContaUsuario[]>('GET', '/api/Usuario'),
+      criar: (dto) => requisitar<ContaUsuario>('POST', '/api/Usuario', dto),
+      definirAdministrador: (id, isAdministrador) =>
+        requisitar<ContaUsuario>('PUT', `/api/Usuario/${id}/administrador`, { isAdministrador }),
+      redefinirSenha: (id, senhaTemporaria) =>
+        requisitar<ContaUsuario>('POST', `/api/Usuario/${id}/redefinir-senha`, { senhaTemporaria }),
+      desativar: (id) => requisitar<ContaUsuario>('POST', `/api/Usuario/${id}/desativar`),
+      reativar: (id) => requisitar<ContaUsuario>('POST', `/api/Usuario/${id}/reativar`),
+    },
     colaboradores: {
       ...recurso<Colaborador, ColaboradorDto>('/api/Colaborador'),
       tornarCoordenador: (id, dto) => requisitar<Colaborador>('PUT', `/api/Colaborador/${id}/coordinator`, dto),

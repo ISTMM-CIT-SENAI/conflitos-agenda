@@ -81,7 +81,7 @@ public class ConflitoSolicitacaoServiceTests
 
     private static Colaborador CriarColaborador(int id)
     {
-        var colaborador = new Colaborador($"Pessoa {id}", $"pessoa{id}@example.com", new(), false);
+        var colaborador = new Colaborador($"Pessoa {id}", new(), false);
         typeof(Colaborador)
             .GetProperty(nameof(Colaborador.Id))!
             .SetValue(colaborador, id);

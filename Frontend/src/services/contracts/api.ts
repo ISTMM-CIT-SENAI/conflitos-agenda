@@ -1,4 +1,4 @@
-import type { Colaborador, Periodo, Projeto, Solicitacao } from '@/domain/entities';
+import type { Colaborador, ContaUsuario, Periodo, Projeto, Solicitacao, UsuarioLogado } from '@/domain/entities';
 import type { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 
 /**
@@ -9,7 +9,13 @@ import type { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 
 export interface ColaboradorDto {
   nome: string;
-  email: string;
+}
+
+export interface UsuarioDto {
+  colaboradorId: number;
+  nomeUsuario: string;
+  senhaTemporaria: string;
+  isAdministrador: boolean;
 }
 
 export interface PeriodoDto {
@@ -48,8 +54,25 @@ export interface RecursoApi<TEntidade, TDto> {
 }
 
 export interface ApiGateway {
+  /** Sessão em cookie HttpOnly emitido pela API. */
+  autenticacao: {
+    /** `null` quando não há sessão (HTTP 401). */
+    eu(): Promise<UsuarioLogado | null>;
+    entrar(nomeUsuario: string, senha: string): Promise<UsuarioLogado>;
+    sair(): Promise<void>;
+    trocarSenha(senhaAtual: string, novaSenha: string): Promise<UsuarioLogado>;
+  };
+  /** Contas de acesso; exclusivo do Administrador. */
+  usuarios: {
+    listar(): Promise<ContaUsuario[]>;
+    criar(dto: UsuarioDto): Promise<ContaUsuario>;
+    definirAdministrador(id: number, isAdministrador: boolean): Promise<ContaUsuario>;
+    redefinirSenha(id: number, senhaTemporaria: string): Promise<ContaUsuario>;
+    desativar(id: number): Promise<ContaUsuario>;
+    reativar(id: number): Promise<ContaUsuario>;
+  };
   colaboradores: RecursoApi<Colaborador, ColaboradorDto> & {
-    /** PUT /api/Colaborador/{id}/coordinator — a API exige nome e e-mail no corpo. */
+    /** PUT /api/Colaborador/{id}/coordinator — a API exige o nome no corpo. */
     tornarCoordenador(id: number, dto: ColaboradorDto): Promise<Colaborador>;
   };
   periodos: RecursoApi<Periodo, PeriodoDto>;
