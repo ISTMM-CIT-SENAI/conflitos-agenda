@@ -9,7 +9,9 @@ import type { StatusSolicitacao } from '../enums/statusSolicitacao';
 export interface Colaborador {
   id: number;
   nome: string;
-  isCoordenador: boolean;
+  isSupervisor: boolean;
+  /** Supervisor (ou o Coordenador) que recebe as solicitações; nulo só para o Coordenador. */
+  respondeA?: { id: number; nome: string } | null;
   projetos?: Projeto[];
 }
 
@@ -34,7 +36,7 @@ export interface Decisor {
   usuarioId: number;
   nomeUsuario: string;
   nomeColaborador: string;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
 }
 
 export interface Solicitacao {
@@ -44,7 +46,7 @@ export interface Solicitacao {
   status: StatusSolicitacao;
   /** DateTimeOffset ISO, com fuso. */
   criadaEm: string;
-  coordenador: Colaborador;
+  supervisor: Colaborador;
   observacao: string | null;
   totalDias: number;
   abono: boolean;
@@ -54,12 +56,12 @@ export interface Solicitacao {
   decididaEm?: string | null;
 }
 
-export type NivelAcesso = 'administrador' | 'coordenador' | 'colaborador';
+export type NivelAcesso = 'coordenador' | 'supervisor' | 'colaborador';
 
 export interface ColaboradorDoUsuario {
   id: number;
   nome: string;
-  isCoordenador: boolean;
+  isSupervisor: boolean;
 }
 
 /** Quem está logado. */
@@ -71,12 +73,12 @@ export interface UsuarioLogado {
   colaborador: ColaboradorDoUsuario;
 }
 
-/** Conta de acesso vista pelo Administrador. */
+/** Conta de acesso vista pelo Coordenador. */
 export interface ContaUsuario {
   id: number;
   nomeUsuario: string;
   nivel: NivelAcesso;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
   ativo: boolean;
   precisaTrocarSenha: boolean;
   bloqueado: boolean;

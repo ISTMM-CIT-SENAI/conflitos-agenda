@@ -1,8 +1,8 @@
 # Manual de uso — Conflitos de Agenda
 
-O **Conflitos de Agenda** organiza os períodos de ausência dos colaboradores (férias, abonos, folgas) e ajuda os coordenadores a analisar os pedidos. Ele avisa quando duas **pessoas críticas** do mesmo projeto vão se ausentar ao mesmo tempo.
+O **Conflitos de Agenda** organiza os períodos de ausência dos colaboradores (férias, abonos, folgas) e encaminha cada pedido ao supervisor da pessoa. Segue as regras de férias da CLT. Ele avisa quando duas **pessoas críticas** do mesmo projeto vão se ausentar ao mesmo tempo.
 
-O acesso é feito com **nome de usuário e senha**, em três níveis: **Administrador**, **Coordenador** e **Colaborador**. Cada um vê e faz apenas o que lhe cabe.
+O acesso é feito com **nome de usuário e senha**, em três níveis: **Coordenador**, **Supervisor** e **Colaborador**. Cada um vê e faz apenas o que lhe cabe.
 
 Este manual mostra como usar cada tela, passo a passo.
 
@@ -13,9 +13,9 @@ Este manual mostra como usar cada tela, passo a passo.
 3. [Níveis de acesso](#3-níveis-de-acesso)
 4. [Navegação](#4-navegação)
 5. [Dashboard](#5-dashboard)
-6. [Colaboradores](#6-colaboradores) *(Administrador)*
-7. [Projetos](#7-projetos) *(Administrador)*
-8. [Usuários](#8-usuários) *(Administrador)*
+6. [Colaboradores](#6-colaboradores) *(Coordenador)*
+7. [Projetos](#7-projetos) *(Coordenador)*
+8. [Usuários](#8-usuários) *(Coordenador)*
 9. [Períodos](#9-períodos)
 10. [Solicitações](#10-solicitações)
 11. [Calendário](#11-calendário)
@@ -29,16 +29,18 @@ Este manual mostra como usar cada tela, passo a passo.
 | Termo | O que significa |
 |---|---|
 | **Colaborador** | Pessoa cadastrada no sistema, identificada apenas pelo **nome completo**, que não pode se repetir. O sistema não guarda e-mail nem outros contatos. |
-| **Usuário** | Conta de acesso ao sistema: nome de usuário (ex.: `joao.silva`) e senha. Cada usuário pertence a um colaborador. Um colaborador pode não ter usuário; nesse caso, as ausências dele são lançadas por um administrador. |
-| **Nível de acesso** | O que o usuário pode fazer: Administrador, Coordenador ou Colaborador (veja a [seção 3](#3-níveis-de-acesso)). |
-| **Coordenador** | Colaborador autorizado a analisar (aprovar ou recusar) as solicitações de outras pessoas. Nunca analisa a própria. |
-| **Administrador** | Usuário com acesso total, normalmente o coordenador do setor. Também não decide a própria solicitação. |
+| **Usuário** | Conta de acesso ao sistema: nome de usuário (ex.: `joao.silva`) e senha. Cada usuário pertence a um colaborador. Um colaborador pode não ter usuário; nesse caso, as ausências dele são lançadas pelo coordenador. |
+| **Nível de acesso** | O que o usuário pode fazer: Coordenador, Supervisor ou Colaborador (veja a [seção 3](#3-níveis-de-acesso)). |
+| **Coordenador** | O coordenador do setor, com acesso total. Pode decidir qualquer solicitação, exceto a própria; a dele já é registrada aprovada. |
+| **Supervisor** | Colaborador que analisa (aprova ou recusa) as solicitações de quem responde a ele. Nunca analisa a própria. |
+| **Responde a** | O supervisor (ou o coordenador) de cada colaborador. As solicitações da pessoa vão automaticamente para ele. |
 | **Projeto** | Equipe de colaboradores que trabalham juntos e cujas ausências precisam ser coordenadas. |
 | **Pessoa crítica** | Colaborador cuja ausência afeta um projeto específico. Uma pessoa pode ser crítica em um projeto e não em outro. |
-| **Período** | Intervalo de datas em que o colaborador estará ausente, de **10 a 30 dias**. |
+| **Período** | Intervalo de datas em que o colaborador estará ausente, de **5 a 30 dias**. Não pode começar na sexta, no sábado ou nos 2 dias antes de um feriado. |
 | **Retorno** | Dia em que o colaborador volta ao trabalho. **O dia de retorno não conta como ausência.** |
-| **Solicitação** | Pedido para que de 1 a 3 períodos de um colaborador sejam analisados por um coordenador. |
-| **Abono** | Tipo de solicitação com limites menores: no máximo 2 períodos e 20 dias no total. |
+| **Solicitação** | Pedido de uma parte das férias (ou de todas): de 1 a 3 períodos, analisados pelo supervisor da pessoa. Dá para pedir 15 dias agora e os outros 15 depois. |
+| **Saldo de férias** | Quanto ainda dá para pedir no ano: até **30 dias** e **3 períodos** no ano, somando todas as solicitações não recusadas. |
+| **Abono** | Venda de 10 dias das férias (abono pecuniário). Com abono em qualquer solicitação do ano, o saldo do ano cai para **20 dias**. |
 | **Conflito** | Quando a ausência de um colaborador coincide com a de uma pessoa crítica do mesmo projeto. |
 | **Decisão** | A aprovação ou recusa de uma solicitação. O sistema registra quem decidiu e quando. |
 
@@ -50,10 +52,10 @@ Os status sempre aparecem com cor, ícone e texto:
 
 | Status | Significado | O que ainda pode ser feito |
 |---|---|---|
-| ⏳ **Em análise** | Aguardando decisão do coordenador. | Editar, validar conflitos, aprovar, recusar, excluir |
+| ⏳ **Em análise** | Aguardando decisão do supervisor. | Editar, validar conflitos, aprovar, recusar, excluir |
 | ⚠️ **Conflito encontrado** | A validação encontrou sobreposição com uma pessoa crítica. | Editar, validar de novo, aprovar (com aviso), recusar, excluir |
-| ✅ **Aprovada** | O coordenador (ou um administrador) aceitou. Decisão final. | Apenas excluir (administrador) |
-| ❌ **Recusada** | O coordenador (ou um administrador) rejeitou, com justificativa. Decisão final. | Apenas excluir (administrador) |
+| ✅ **Aprovada** | O supervisor (ou o coordenador) aceitou. Decisão final. | Apenas excluir (coordenador) |
+| ❌ **Recusada** | O supervisor (ou o coordenador) rejeitou, com justificativa. Decisão final. | Apenas excluir (coordenador) |
 
 ---
 
@@ -61,7 +63,7 @@ Os status sempre aparecem com cor, ícone e texto:
 
 ### 2.1 Login
 
-Abra o sistema no navegador e informe o **nome de usuário** e a **senha** fornecidos pelo administrador. O ícone de olho ao lado da senha mostra o que foi digitado.
+Abra o sistema no navegador e informe o **nome de usuário** e a **senha** fornecidos pelo coordenador. O ícone de olho ao lado da senha mostra o que foi digitado.
 
 ![Tela de login](imagens/21-login.png)
 
@@ -69,24 +71,24 @@ Abra o sistema no navegador e informe o **nome de usuário** e a **senha** forne
 - Se o usuário ou a senha estiverem errados, aparece a mensagem "Usuário ou senha inválidos.". Por segurança, o sistema não diz qual dos dois está errado.
 - Após **5 tentativas erradas**, o login fica bloqueado por **15 minutos**.
 
-> **Modo demonstração:** quando o sistema roda sem o servidor (só para apresentações e treinamentos), a tela de login lista três usuários fictícios. Basta clicar em um deles para entrar: `admin`, `coordenador` ou `colaborador`, todos com a senha `demo123`.
+> **Modo demonstração:** quando o sistema roda sem o servidor (só para apresentações e treinamentos), a tela de login lista três usuários fictícios. Basta clicar em um deles para entrar: `coordenador`, `supervisor` ou `colaborador`, todos com a senha `demo123`.
 
 ### 2.2 Primeiro acesso: definir a sua senha
 
-A senha que o administrador entrega é **temporária**. Logo após o primeiro login, o sistema pede que você crie a sua própria senha antes de liberar qualquer outra tela:
+A senha que o coordenador entrega é **temporária**. Logo após o primeiro login, o sistema pede que você crie a sua própria senha antes de liberar qualquer outra tela:
 
 ![Definir nova senha](imagens/22-trocar-senha.png)
 
-1. Em **Senha temporária**, digite a senha recebida do administrador.
+1. Em **Senha temporária**, digite a senha recebida do coordenador.
 2. Em **Nova senha**, escolha uma senha com pelo menos **8 caracteres**.
 3. Repita a nova senha em **Confirme a nova senha**.
 4. Clique em **Salvar nova senha**.
 
-A partir daí, a senha temporária deixa de funcionar e **só você conhece a nova senha**: nem o administrador tem acesso a ela.
+A partir daí, a senha temporária deixa de funcionar e **só você conhece a nova senha**: nem o coordenador tem acesso a ela.
 
 ### 2.3 Esqueci a minha senha
 
-O sistema não envia e-mails. Peça ao **administrador** uma nova senha temporária (veja a [seção 8.3](#83-redefinir-senha)). No próximo login, você vai criar uma nova senha, como no primeiro acesso.
+O sistema não envia e-mails. Peça ao **coordenador** uma nova senha temporária (veja a [seção 8.3](#83-redefinir-senha)). No próximo login, você vai criar uma nova senha, como no primeiro acesso.
 
 ### 2.4 Sair
 
@@ -96,19 +98,19 @@ O seu nome, o nome de usuário e o nível de acesso aparecem no rodapé do menu 
 
 ## 3. Níveis de acesso
 
-| O que pode fazer | Administrador | Coordenador | Colaborador |
+| O que pode fazer | Coordenador | Supervisor | Colaborador |
 |---|:---:|:---:|:---:|
-| Cadastrar colaboradores e projetos, tornar coordenador | ✅ | — | — |
+| Cadastrar colaboradores e projetos, definir "Responde a" e tornar supervisor | ✅ | — | — |
 | Criar e gerenciar usuários (acessos) | ✅ | — | — |
-| Ver solicitações | todas | as suas e as atribuídas a ele | as suas |
+| Ver solicitações | todas | as suas e as de quem responde a ele | as suas |
 | Criar e editar solicitações e períodos | de qualquer colaborador | os seus | os seus |
-| Validar conflitos | todas | as suas e as atribuídas a ele | as suas |
-| Aprovar e recusar | qualquer uma, exceto a própria | as atribuídas a ele, exceto a própria | — |
+| Validar conflitos | todas | as suas e as de quem responde a ele | as suas |
+| Aprovar e recusar | qualquer uma, exceto a própria (que já nasce aprovada) | as de quem responde a ele | — |
 | Excluir solicitações | qualquer uma | as suas, antes da decisão | as suas, antes da decisão |
 | Calendário | todas as ausências | as suas e as dos colegas de projeto | as suas e as dos colegas de projeto |
 
-- Quem não é administrador tem o nível definido pelo cadastro: se o colaborador é **coordenador**, o acesso é de Coordenador; caso contrário, de Colaborador.
-- O menu mostra apenas as áreas do seu nível. Coordenadores e colaboradores veem **Dashboard**, **Períodos**, **Solicitações** e **Calendário**:
+- Quem não é coordenador tem o nível definido pelo cadastro: se o colaborador é **supervisor**, o acesso é de Supervisor; caso contrário, de Colaborador.
+- O menu mostra apenas as áreas do seu nível. Supervisores e colaboradores veem **Dashboard**, **Períodos**, **Solicitações** e **Calendário**:
 
 ![Dashboard de um colaborador](imagens/25-colaborador-dashboard.png)
 
@@ -140,25 +142,26 @@ No modo demonstração, o rodapé do menu mostra a etiqueta **Modo demonstraçã
 
 É a tela inicial, com um resumo da situação. O conteúdo depende do seu nível de acesso.
 
-![Dashboard do administrador](imagens/01-dashboard.png)
+![Dashboard do coordenador](imagens/01-dashboard.png)
 
-- **Indicadores** (cartões no topo): quantas solicitações existem em cada status, considerando as que você pode ver. O administrador também vê o total de colaboradores e projetos. **Clique em um cartão** para abrir a lista já filtrada.
-- **Próximas ausências**: períodos em andamento ou futuros. Para coordenadores e colaboradores, as ausências de colegas de projeto aparecem com a etiqueta "Colega de projeto".
-- **Aguardando decisão**: para o administrador, todas as solicitações pendentes. Para o coordenador, as que esperam a decisão dele ("Aguardando sua decisão"). Para o colaborador, as suas em análise.
+- **Indicadores** (cartões no topo): quantas solicitações existem em cada status, considerando as que você pode ver. O coordenador também vê o total de colaboradores e projetos. **Clique em um cartão** para abrir a lista já filtrada.
+- **Próximas ausências**: períodos em andamento ou futuros. Para supervisores e colaboradores, as ausências de colegas de projeto aparecem com a etiqueta "Colega de projeto".
+- **Aguardando decisão**: para o coordenador, todas as solicitações pendentes. Para o supervisor, as que esperam a decisão dele ("Aguardando sua decisão"). Para o colaborador, as suas em análise.
 - **Nova solicitação**: atalho para criar um pedido.
 
 ---
 
 ## 6. Colaboradores
 
-*Área exclusiva do administrador.*
+*Área exclusiva do coordenador.*
 
 ### 6.1 Listagem
 
 ![Lista de colaboradores](imagens/02-colaboradores.png)
 
 - Use a **busca** para filtrar pelo nome. Acentos e letras maiúsculas são ignorados.
-- A coluna **Perfil** indica quem é **Coordenador**.
+- A coluna **Responde a** mostra o supervisor de cada pessoa, que recebe as solicitações dela.
+- A coluna **Perfil** indica quem é **Supervisor**.
 - A coluna **Acesso ao sistema** mostra o nome de usuário do colaborador, ou "Sem acesso".
 - Ícones de ação em cada linha:
 
@@ -166,27 +169,28 @@ No modo demonstração, o rodapé do menu mostra a etiqueta **Modo demonstraçã
 |---|---|
 | 👁 | Ver detalhes do colaborador |
 | ✏️ | Editar o nome |
-| 🛡 | Tornar coordenador (desabilitado para quem já é) |
+| 🛡 | Tornar supervisor (desabilitado para quem já é) |
 | 🗑 | Excluir |
 
 ### 6.2 Cadastrar ou editar
 
 1. Clique em **Novo colaborador**, ou no ícone ✏️ da linha.
 2. Preencha o **Nome completo**. Ele identifica o colaborador e não pode se repetir: se já existir alguém com o mesmo nome, diferencie-o (por exemplo, "João Silva Souza").
-3. Em **Acesso ao sistema**, ligue **Criar acesso para este colaborador** se a pessoa for entrar no sistema e preencha:
+3. Em **Responde a**, escolha o supervisor da pessoa (só aparecem supervisores). As solicitações dela serão encaminhadas a ele. Deixe vazio apenas para o coordenador.
+4. Em **Acesso ao sistema**, ligue **Criar acesso para este colaborador** se a pessoa for entrar no sistema e preencha:
    - **Nome de usuário**: de 3 a 30 caracteres, com letras, números, ponto, hífen ou sublinhado (ex.: `joao.silva`);
    - **Senha temporária**: pelo menos 8 caracteres;
-   - **Administrador**: marque só se a pessoa precisar de acesso total.
-4. Clique em **Salvar**.
-5. **Entregue a senha temporária à pessoa** (pessoalmente, por telefone ou pelo chat interno). Ela será obrigada a trocá-la no primeiro acesso.
+   - **Coordenador**: marque só se a pessoa precisar de acesso total.
+5. Clique em **Salvar**.
+6. **Entregue a senha temporária à pessoa** (pessoalmente, por telefone ou pelo chat interno). Ela será obrigada a trocá-la no primeiro acesso.
 
 ![Novo colaborador com acesso ao sistema](imagens/03-colaborador-novo.png)
 
 Se o colaborador já tem acesso, a seção mostra o nome de usuário e indica a tela **Usuários** para redefinir a senha ou desativar a conta.
 
-### 6.3 Tornar coordenador
+### 6.3 Tornar supervisor
 
-Clique no ícone 🛡 na lista, ou no botão **Tornar coordenador** na página do colaborador, e confirme. A partir daí, a pessoa aparece como opção de coordenador nas solicitações. Se ela tiver acesso ao sistema, passa a ter o nível de Coordenador.
+Clique no ícone 🛡 na lista, ou no botão **Tornar supervisor** na página do colaborador, e confirme. A partir daí, a pessoa pode ser escolhida em **Responde a** dos colaboradores. Se ela tiver acesso ao sistema, passa a ter o nível de Supervisor.
 
 ### 6.4 Página do colaborador
 
@@ -194,11 +198,11 @@ Clique no nome do colaborador para ver tudo sobre ele em um só lugar:
 
 ![Detalhe do colaborador](imagens/04-colaborador-detalhe.png)
 
-- No topo: se é coordenador e se tem acesso ao sistema.
+- No topo: se é supervisor, se tem acesso ao sistema e a quem responde.
 - **Períodos**: as ausências cadastradas e a solicitação de cada uma.
 - **Solicitações**: os pedidos feitos por ele.
 - **Projetos**: os projetos de que participa, com destaque em laranja para aqueles em que é pessoa crítica.
-- **Solicitações sob sua análise**: só aparece para coordenadores.
+- **Solicitações sob sua análise**: só aparece para supervisores.
 
 ### 6.5 Excluir
 
@@ -208,7 +212,7 @@ Só é possível excluir colaboradores **sem períodos e sem solicitações** vi
 
 ## 7. Projetos
 
-*Área exclusiva do administrador.*
+*Área exclusiva do coordenador.*
 
 ### 7.1 Listagem
 
@@ -238,7 +242,7 @@ A lista mostra quantos colaboradores cada projeto tem e quem são as **pessoas c
 
 ## 8. Usuários
 
-*Área exclusiva do administrador.* Aqui ficam as contas de acesso ao sistema.
+*Área exclusiva do coordenador.* Aqui ficam as contas de acesso ao sistema.
 
 ![Tela de usuários](imagens/23-usuarios.png)
 
@@ -253,11 +257,11 @@ A coluna **Situação** mostra:
 
 ### 8.1 Criar acesso
 
-Clique em **Novo acesso**, escolha o colaborador (só aparecem os que ainda não têm acesso) e preencha nome de usuário, senha temporária e, se for o caso, **Administrador**. Também é possível criar o acesso no cadastro do colaborador (veja a [seção 6.2](#62-cadastrar-ou-editar)). Entregue a senha temporária à pessoa.
+Clique em **Novo acesso**, escolha o colaborador (só aparecem os que ainda não têm acesso) e preencha nome de usuário, senha temporária e, se for o caso, **Coordenador**. Também é possível criar o acesso no cadastro do colaborador (veja a [seção 6.2](#62-cadastrar-ou-editar)). Entregue a senha temporária à pessoa.
 
-### 8.2 Administrador
+### 8.2 Coordenador
 
-Use o ícone 🛡 para **tornar administrador** ou **remover administrador**. Você não pode remover o seu próprio acesso de administrador, e o sistema sempre mantém pelo menos um administrador ativo.
+Use o ícone 🛡 para **tornar coordenador** ou **remover coordenador**. Você não pode remover o seu próprio acesso de coordenador, e o sistema sempre mantém pelo menos um coordenador ativo.
 
 ### 8.3 Redefinir senha
 
@@ -283,7 +287,7 @@ Quando alguém sai do setor, use o ícone ⊘ **Desativar**. A pessoa não conse
 
 ![Lista de períodos](imagens/07-periodos.png)
 
-- O **administrador** vê os períodos de todos e pode usar **Filtrar por colaborador**. Coordenadores e colaboradores veem **apenas os próprios períodos**.
+- O **coordenador** vê os períodos de todos e pode usar **Filtrar por colaborador**. Supervisores e colaboradores veem **apenas os próprios períodos**.
 - Colunas **Início**, **Último dia** (último dia de ausência) e **Retorno** (dia da volta).
 - **Solicitação**: número e status da solicitação que usa o período, ou "Sem solicitação".
 - **Ver no calendário**: abre o calendário com o mesmo filtro.
@@ -291,19 +295,20 @@ Quando alguém sai do setor, use o ícone ⊘ **Desativar**. A pessoa não conse
 ### 9.2 Cadastrar ou editar
 
 1. Clique em **Novo período**, ou no ícone ✏️.
-2. O **Colaborador** já vem preenchido com você. O administrador pode escolher qualquer colaborador.
+2. O **Colaborador** já vem preenchido com você. O coordenador pode escolher qualquer colaborador.
 3. Escolha a data de **Início** (primeiro dia de ausência) e a de **Retorno** (dia em que a pessoa volta). As datas podem ser digitadas no formato dd/mm/aaaa ou escolhidas no ícone de calendário.
-4. Confira o quadro de resumo. Verde indica que o período é válido e mostra os dias exatos de ausência; azul é o lembrete da regra de 10 a 30 dias.
+4. Confira o quadro de resumo. Verde indica que o período é válido e mostra os dias exatos de ausência; azul é o lembrete da regra de 5 a 30 dias.
 5. Clique em **Salvar**.
 
 ![Edição de período](imagens/08-periodo-editar.png)
 
 **Restrições**
 
-- O período deve ter entre 10 e 30 dias.
+- O período deve ter entre 5 e 30 dias.
+- As férias não podem começar nos 2 dias que antecedem um domingo ou feriado (CLT, art. 134, §3º): na prática, nem na sexta nem no sábado. Valem os feriados nacionais e os municipais de Belo Horizonte (Sexta-feira da Paixão, Corpus Christi, 15/8 e 8/12). Carnaval não é feriado.
 - Um colaborador não pode ter dois períodos que se sobreponham.
 - Períodos de solicitações **aprovadas** não podem ser editados.
-- Ao editar um período de uma solicitação ainda em aberto, o total de dias é recalculado e a solicitação **volta para Em análise**.
+- Ao editar um período de uma solicitação ainda em aberto, o total de dias é recalculado e a solicitação **volta para Em análise**. A alteração é recusada se deixar a solicitação fora das regras (por exemplo, somando menos de 30 dias).
 - Não é possível excluir um período que faz parte de uma solicitação. Remova-o da solicitação primeiro.
 
 ---
@@ -318,9 +323,9 @@ A lista mostra só as solicitações que você pode ver (veja a [seção 3](#3-n
 
 | Filtro | Uso |
 |---|---|
-| **Busca** | Número da solicitação (ex.: `7` ou `#7`), nome do colaborador ou do coordenador, ou texto da observação |
+| **Busca** | Número da solicitação (ex.: `7` ou `#7`), nome do colaborador ou do supervisor, ou texto da observação |
 | **Status** | Em análise, Conflito encontrado, Aprovada ou Recusada |
-| **Colaborador** | Somente os pedidos de uma pessoa (administrador e coordenador) |
+| **Colaborador** | Somente os pedidos de uma pessoa (coordenador e supervisor) |
 | **Ausente de / Até** | Solicitações com ausência em algum dia desse intervalo |
 
 ![Lista filtrada por status](imagens/10-solicitacoes-filtro.png)
@@ -329,13 +334,20 @@ A lista mostra só as solicitações que você pode ver (veja a [seção 3](#3-n
 
 ### 10.2 Criar uma solicitação
 
+Você pode pedir as férias **em partes**: por exemplo, 15 dias agora e os outros 15 quando souber a data. As regras da CLT valem para o **ano**, somando todas as suas solicitações não recusadas daquele ano (conta o ano do primeiro dia de férias de cada uma):
+
+- até **3 períodos** e **30 dias** no ano, ou **20 dias com abono** (venda de 10 dias);
+- cada período com pelo menos **5 dias**, e **um deles com pelo menos 14**. Se você ainda não pediu um período de 14 dias, o sistema só aceita o pedido se ainda sobrar espaço para ele (por exemplo, 10 dias e depois mais 10 não dá: sobrariam só 10).
+
 1. Clique em **Nova solicitação**.
-2. **Colaborador**: já vem preenchido com você. Só o administrador pode criar solicitações para outras pessoas.
-3. **Coordenador**: escolha quem vai analisar. Só aparecem coordenadores, e você nunca aparece como opção.
+2. **Colaborador**: já vem preenchido com você. Só o coordenador pode criar solicitações para outras pessoas. Logo abaixo, o sistema mostra quem vai analisar: o supervisor cadastrado em **Responde a**. Não é preciso escolher.
+3. **Abono**: ligue **Solicitação de abono** se a pessoa for vender 10 dias. O limite do ano cai de 30 para 20 dias.
 4. **Períodos**: marque de 1 a 3 períodos. Se o período desejado ainda não existe, clique em **Cadastrar novo período**; depois de salvo, ele já vem marcado.
-5. **Abono e observação**: ligue **Solicitação de abono**, se for o caso, e escreva uma observação (opcional).
-6. Confira o **Resumo**, à direita. **Total de dias** e **Pessoa crítica** são calculados automaticamente.
+5. **Observação** (opcional).
+6. Confira o **Resumo**, à direita: **Férias de AAAA** mostra quantos dias você já pediu no ano, quantos tem este pedido e quantos restam. Se ainda faltar o período de 14 dias, ele avisa. Um aviso laranja aponta o que estiver fora das regras.
 7. Clique em **Criar solicitação**. Ela é criada com status **Em análise**.
+
+> **Solicitação do coordenador:** como ele não responde a ninguém no sistema, a solicitação dele já é registrada **Aprovada** (a aprovação acontece fora do sistema).
 
 ![Formulário de nova solicitação](imagens/11-solicitacao-nova.png)
 
@@ -347,8 +359,8 @@ Se algum campo obrigatório ficar vazio, o sistema mostra o que falta:
 
 ![Detalhe da solicitação](imagens/13-solicitacao-detalhe.png)
 
-- No topo: número, status e data de criação, e os botões **Validar conflitos**, **Aprovar** e **Recusar**. Os botões só aparecem para quem pode usá-los: **Aprovar** e **Recusar** aparecem para o coordenador escolhido e para o administrador, nunca para o próprio solicitante.
-- **Sobreposições com pessoas críticas** *(administrador)*: quem está ausente nas mesmas datas, de qual projeto e em qual solicitação.
+- No topo: número, status e data de criação, e os botões **Validar conflitos**, **Aprovar** e **Recusar**. Os botões só aparecem para quem pode usá-los: **Aprovar** e **Recusar** aparecem para o supervisor encaminhado e para o coordenador, nunca para o próprio solicitante.
+- **Sobreposições com pessoas críticas** *(coordenador)*: quem está ausente nas mesmas datas, de qual projeto e em qual solicitação.
 - **Gerenciar**: **Editar** e **Excluir**, habilitados conforme a [seção 3](#3-níveis-de-acesso).
 
 ### 10.4 Validar conflitos
@@ -369,7 +381,7 @@ Clique em **Validar conflitos** para registrar o resultado no status:
 
 ![Confirmação de aprovação](imagens/15-aprovar.png)
 
-A aprovação é definitiva. O topo da solicitação passa a mostrar **quem decidiu e quando**. Se um administrador decidir no lugar do coordenador escolhido, aparece "(administrador)" ao lado do nome, e o coordenador escolhido continua registrado.
+A aprovação é definitiva. O topo da solicitação passa a mostrar **quem decidiu e quando**. Se o coordenador decidir no lugar do supervisor encaminhado, aparece "(coordenador)" ao lado do nome, e o supervisor encaminhado continua registrado.
 
 ![Solicitação aprovada, com o registro da decisão](imagens/26-decisao.png)
 
@@ -385,17 +397,17 @@ A recusa também é definitiva e fica registrada com quem decidiu e quando.
 
 ### 10.7 Editar
 
-O próprio colaborador ou um administrador pode editar solicitações **Em análise** ou com **Conflito encontrado**. Ao salvar, a solicitação **volta para Em análise** e deve ser validada de novo.
+O próprio colaborador ou o coordenador pode editar solicitações **Em análise** ou com **Conflito encontrado**. Ao salvar, a solicitação **volta para Em análise** e deve ser validada de novo. O colaborador da solicitação não pode ser trocado: para outra pessoa, crie uma nova solicitação.
 
 ### 10.8 Solicitações que violam regras
 
-Solicitações antigas podem ter sido gravadas antes das regras atuais (por exemplo, um abono com 3 períodos). Nesse caso, a página mostra um alerta vermelho explicando o problema. Elas não podem ser aprovadas nem recusadas até serem corrigidas: clique em **Editar** e ajuste.
+Solicitações antigas podem ter sido gravadas antes das regras atuais (por exemplo, 4 períodos num só pedido). Nesse caso, a página mostra um alerta vermelho explicando o problema. Elas não podem ser aprovadas nem recusadas até serem corrigidas: clique em **Editar** e ajuste.
 
 ![Solicitação que viola regras](imagens/17-solicitacao-invalida.png)
 
 ### 10.9 Excluir
 
-O colaborador pode excluir as próprias solicitações **antes da decisão**; o administrador pode excluir qualquer uma. **Os períodos continuam cadastrados** e ficam livres para uma nova solicitação.
+O colaborador pode excluir as próprias solicitações **antes da decisão**; o coordenador pode excluir qualquer uma. **Os períodos continuam cadastrados** e ficam livres para uma nova solicitação.
 
 ---
 
@@ -403,7 +415,7 @@ O colaborador pode excluir as próprias solicitações **antes da decisão**; o 
 
 Mostra as ausências mês a mês.
 
-![Calendário do administrador](imagens/18-calendario.png)
+![Calendário do coordenador](imagens/18-calendario.png)
 
 - **Navegação**: as setas avançam ou voltam um mês, e **Hoje** retorna ao mês atual.
 - **Cores**: cada ausência tem a cor do status da solicitação (veja a legenda abaixo do calendário). Períodos sem solicitação aparecem em cinza.
@@ -412,7 +424,7 @@ Mostra as ausências mês a mês.
 - **Clique em uma ausência** para abrir a solicitação.
 - A barra termina no último dia de ausência. O dia de retorno não é pintado.
 
-**Para coordenadores e colaboradores**, o calendário também mostra, em cinza-claro, as ausências planejadas dos **colegas dos mesmos projetos**, para ajudar a escolher datas sem conflito. Elas mostram só o nome e as datas: os detalhes da solicitação do colega não ficam visíveis, e o clique não abre nada.
+**Para supervisores e colaboradores**, o calendário também mostra, em cinza-claro, as ausências planejadas dos **colegas dos mesmos projetos**, para ajudar a escolher datas sem conflito. Elas mostram só o nome e as datas: os detalhes da solicitação do colega não ficam visíveis, e o clique não abre nada.
 
 ![Calendário de um colaborador, com a ausência de um colega](imagens/27-calendario-colaborador.png)
 
@@ -427,12 +439,14 @@ Mostra as ausências mês a mês.
 | Senha com pelo menos 8 caracteres; senha temporária deve ser trocada no primeiro acesso. | Usuários |
 | 5 tentativas de senha erradas bloqueiam o login por 15 minutos. | Login |
 | A sessão expira após 8 horas sem uso. | Login |
-| O período deve ter de 10 a 30 dias, e o retorno deve ser posterior ao início. | Períodos |
+| O período deve ter de 5 a 30 dias, e o retorno deve ser posterior ao início. | Períodos |
+| O período não pode começar nos 2 dias antes de domingo ou feriado (nacional ou de BH). | Períodos |
 | Os períodos de um mesmo colaborador não podem se sobrepor. | Períodos |
-| Uma solicitação tem de 1 a 3 períodos, todos do próprio solicitante. | Solicitações |
-| Abono: no máximo 2 períodos e 20 dias no total. | Solicitações |
-| O coordenador precisa ter perfil de coordenador e ser outra pessoa. | Solicitações |
-| Ninguém aprova ou recusa a própria solicitação, nem o administrador. | Solicitações |
+| Uma solicitação tem de 1 a 3 períodos, todos do próprio solicitante, um deles com pelo menos 14 dias e os demais com pelo menos 5. | Solicitações |
+| No ano, no máximo 3 períodos e 30 dias (20 se houver abono), somando as solicitações não recusadas. | Solicitações |
+| Um dos períodos do ano precisa ter pelo menos 14 dias. | Solicitações |
+| A solicitação vai para quem o colaborador responde; o solicitante não escolhe. A do coordenador já nasce aprovada. | Solicitações |
+| Ninguém aprova ou recusa a própria solicitação, nem o coordenador. | Solicitações |
 | Total de dias e Pessoa crítica são calculados pelo sistema. | Solicitações |
 | Recusar exige observação. | Solicitações |
 | Aprovadas e recusadas não podem ser editadas. | Solicitações |
@@ -444,31 +458,40 @@ Mostra as ausências mês a mês.
 ## 13. Dúvidas frequentes
 
 **Esqueci a minha senha. Como recupero?**
-Peça ao administrador uma senha temporária. No próximo login, você vai definir uma nova senha. O sistema não envia e-mails.
+Peça ao coordenador uma senha temporária. No próximo login, você vai definir uma nova senha. O sistema não envia e-mails.
 
 **Aparece "Muitas tentativas incorretas".**
-O login foi bloqueado após 5 senhas erradas. Espere 15 minutos ou peça ao administrador para redefinir a senha, o que desfaz o bloqueio.
+O login foi bloqueado após 5 senhas erradas. Espere 15 minutos ou peça ao coordenador para redefinir a senha, o que desfaz o bloqueio.
 
 **Por que não vejo as telas de Colaboradores, Projetos e Usuários?**
-Elas são exclusivas do administrador. Se precisar cadastrar algo, peça a ele.
+Elas são exclusivas do coordenador. Se precisar cadastrar algo, peça a ele.
 
 **Não consigo escolher outro colaborador ao criar uma solicitação.**
-Coordenadores e colaboradores criam solicitações apenas para si mesmos. Só o administrador cria para outras pessoas.
+Supervisores e colaboradores criam solicitações apenas para si mesmos. Só o coordenador cria para outras pessoas.
 
 **O botão "Aprovar" não aparece para mim.**
-Só o coordenador escolhido na solicitação e o administrador podem aprovar ou recusar, e nunca a própria solicitação.
+Só o supervisor encaminhado e o coordenador podem aprovar ou recusar, e nunca a própria solicitação.
 
-**Por que o meu período de 15/10 a 24/10 dá erro de duração mínima?**
-Porque a segunda data é o **Retorno**, e o dia de retorno não conta como ausência. Para ficar ausente até 24/10, informe Retorno em 25/10, o que dá 10 dias.
+**Quero ficar ausente de 02/03 a 31/03. Que datas informo?**
+Início 02/03 e **Retorno** 01/04: o dia de retorno não conta como ausência, então são 30 dias.
 
-**O coordenador que eu quero não aparece na lista.**
-Ele precisa ter o perfil de coordenador. Peça ao administrador para usar **Tornar coordenador** na tela de Colaboradores.
+**Por que não consigo começar as férias numa sexta-feira?**
+A CLT proíbe começar as férias nos 2 dias que antecedem o domingo ou um feriado. Comece na segunda, por exemplo.
+
+**Preciso pedir os 30 dias de uma vez?**
+Não. Peça só o que já sabe (por exemplo, 15 dias) e o resto depois, em outra solicitação. O resumo do formulário mostra quantos dias ainda restam no ano.
+
+**Posso dividir as férias em 10 + 10 + 10?**
+Não. Um dos períodos precisa ter pelo menos 14 dias, por exemplo 14 + 10 + 6.
+
+**Minha solicitação foi para o supervisor errado.**
+Ela vai para quem está em **Responde a** no seu cadastro. Peça ao coordenador para corrigir; as próximas solicitações irão para o novo supervisor. As que já existem continuam com quem as recebeu, e o coordenador pode decidi-las.
 
 **Validei e deu conflito. Posso aprovar mesmo assim?**
-Sim, se você for o coordenador escolhido ou o administrador. O sistema pede uma confirmação extra (**Aprovar mesmo assim**).
+Sim, se você for o supervisor encaminhado ou o coordenador. O sistema pede uma confirmação extra (**Aprovar mesmo assim**).
 
 **Aprovei por engano. Como desfaço?**
-A aprovação é definitiva. Peça ao administrador para excluir a solicitação (os períodos são mantidos) e crie uma nova.
+A aprovação é definitiva. Peça ao coordenador para excluir a solicitação (os períodos são mantidos) e crie uma nova.
 
 **Alguém saiu do setor. O que faço com o acesso?**
-O administrador desativa o usuário na tela **Usuários**. O histórico continua preservado.
+O coordenador desativa o usuário na tela **Usuários**. O histórico continua preservado.

@@ -36,7 +36,7 @@ public class ProjetoController : ControllerBase
         return Ok(projetos.Select(p => new ProjetoResponseDto(p)));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpPost]
     public async Task<IActionResult> Add(ProjetoInsertionDto dto)
     {
@@ -50,7 +50,7 @@ public class ProjetoController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = novoProjeto.Id }, new ProjetoResponseDto(novoProjeto));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, ProjetoUpdateDto dto)
     {
@@ -64,7 +64,7 @@ public class ProjetoController : ControllerBase
         return Ok(new ProjetoResponseDto(projetoAtualizado));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {

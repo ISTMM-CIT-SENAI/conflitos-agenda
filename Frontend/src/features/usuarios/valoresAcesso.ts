@@ -1,12 +1,12 @@
 export interface ValoresAcesso {
   nomeUsuario: string;
   senhaTemporaria: string;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
 }
 
 export type ErrosAcesso = Partial<Record<keyof ValoresAcesso, string>>;
 
-export const ACESSO_VAZIO: ValoresAcesso = { nomeUsuario: '', senhaTemporaria: '', isAdministrador: false };
+export const ACESSO_VAZIO: ValoresAcesso = { nomeUsuario: '', senhaTemporaria: '', isCoordenador: false };
 
 export function errosDeValoresAcesso(
   valores: ValoresAcesso,

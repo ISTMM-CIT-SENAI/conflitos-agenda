@@ -31,6 +31,12 @@ public class ColaboradorService : IColaboradorService
         return nomeLimpo;
     }
 
+    private async Task<Colaborador?> ObterRespondeAAsync(int? id) =>
+        id is null
+            ? null
+            : await _colaboradorRepository.GetByIdAsync(id.Value)
+                ?? throw new ArgumentException($"Colaborador com ID {id} não encontrado.");
+
     public async Task<Colaborador?> GetByIdAsync(int id)
     {
         var colaborador =  await _colaboradorRepository.GetByIdAsync(id);
@@ -52,6 +58,7 @@ public class ColaboradorService : IColaboradorService
             await ValidarNomeAsync(dto.Nome),
             new List<Projeto>(),
             false);
+        colaborador.DefinirRespondeA(await ObterRespondeAAsync(dto.RespondeAId));
 
         var novoColaborador = await _colaboradorRepository.AddAsync(colaborador);
 
@@ -73,6 +80,7 @@ public class ColaboradorService : IColaboradorService
         }
 
         colaborador.AtualizarDados(await ValidarNomeAsync(dto.Nome, id));
+        colaborador.DefinirRespondeA(await ObterRespondeAAsync(dto.RespondeAId));
 
         var colaboradorAtualizado = await _colaboradorRepository.UpdateAsync(colaborador);
 
@@ -108,7 +116,7 @@ public class ColaboradorService : IColaboradorService
         await _colaboradorRepository.DeleteAsync(id);
         return true;
     }
-    public async Task<Colaborador?> TornarCoordenadorAsync(int id, ColaboradorUpdateDto dto)
+    public async Task<Colaborador?> TornarSupervisorAsync(int id, ColaboradorUpdateDto dto)
     {
         var colaborador = await _colaboradorRepository.GetByIdAsync(id);
 
@@ -116,7 +124,7 @@ public class ColaboradorService : IColaboradorService
         {
             return null;
         }
-        colaborador.TornarCoordenador();
+        colaborador.TornarSupervisor();
 
         var colaboradorAtualizado = await _colaboradorRepository.UpdateAsync(colaborador);
 

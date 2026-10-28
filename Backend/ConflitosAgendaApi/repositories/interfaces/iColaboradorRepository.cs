@@ -8,7 +8,6 @@ public interface IColaboradorRepository
     Task<Colaborador?> AddAsync(Colaborador colaborador);
     Task<Colaborador?> UpdateAsync(Colaborador colaborador);
     Task<Colaborador?> DeleteAsync(int id);
-    Task<Colaborador?> TornarCoordenadorAsync(int id);
     /// <summary>Verifica se já existe colaborador com o nome (sem diferenciar maiúsculas).</summary>
     Task<bool> ExisteComNomeAsync(string nome, int? ignorarId = null);
 }

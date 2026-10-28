@@ -21,7 +21,7 @@ import { useColaboradores, useMutacao, usePeriodos, useSolicitacoes } from '@/ho
 import { useFiltrosUrl } from '@/hooks/useFiltrosUrl';
 import { useUsuarioLogado } from '@/app/providers/useSessao';
 import { LinkColaborador } from '@/components/common/LinkColaborador';
-import { ehAdministrador } from '@/domain/acesso';
+import { ehCoordenador } from '@/domain/acesso';
 import { formatarData } from '@/lib/datas';
 import { PeriodoFormDialog } from './PeriodoFormDialog';
 
@@ -38,8 +38,8 @@ export function PeriodosPage() {
   const servicos = useServicos();
   const filtros = useFiltrosUrl<'colaborador'>();
   const usuario = useUsuarioLogado();
-  const admin = ehAdministrador(usuario);
-  // Quem não é administrador vê e gerencia só os próprios períodos.
+  const admin = ehCoordenador(usuario);
+  // Quem não é coordenador vê e gerencia só os próprios períodos.
   const colaboradorId = admin ? filtros.obterNumero('colaborador') : usuario.colaborador.id;
 
   const colaboradores = useColaboradores();
@@ -140,7 +140,7 @@ export function PeriodosPage() {
     <>
       <PageHeader
         titulo="Períodos"
-        subtitulo={admin ? 'Intervalos de ausência dos colaboradores, de 10 a 30 dias.' : 'Seus intervalos de ausência, de 10 a 30 dias.'}
+        subtitulo={admin ? 'Intervalos de ausência dos colaboradores, de 5 a 30 dias.' : 'Seus intervalos de ausência, de 5 a 30 dias.'}
         acoes={
           <>
             <Button

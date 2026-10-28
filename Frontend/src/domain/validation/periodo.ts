@@ -1,7 +1,9 @@
 import type { Periodo } from '../entities';
 import { dataISODeDateTime, diferencaEmDias, somarDias, type DataISO } from '@/lib/datas';
+import { iniciaAntesDeDescanso } from './feriados';
 
-export const DURACAO_MINIMA_DIAS = 10;
+/** CLT: nenhum período de férias pode ter menos de 5 dias. */
+export const DURACAO_MINIMA_DIAS = 5;
 export const DURACAO_MAXIMA_DIAS = 30;
 
 /** Intervalo de datas de um Período. `retorno` é exclusivo: não é dia de ausência. */
@@ -41,6 +43,9 @@ export function validarIntervalo(intervalo: Intervalo): string[] {
   }
   if (duracao > DURACAO_MAXIMA_DIAS) {
     return [`O período deve ter no máximo ${DURACAO_MAXIMA_DIAS} dias (atual: ${duracao}).`];
+  }
+  if (iniciaAntesDeDescanso(intervalo.inicio)) {
+    return ['As férias não podem começar nos 2 dias que antecedem um domingo ou feriado (CLT, art. 134, §3º).'];
   }
   return [];
 }

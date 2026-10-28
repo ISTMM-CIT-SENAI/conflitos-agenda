@@ -9,7 +9,7 @@ import { LayoutAcesso } from './LayoutAcesso';
 type Campo = 'senhaAtual' | 'novaSenha' | 'confirmacao';
 
 /**
- * Obrigatória no primeiro acesso e depois que o administrador redefine a senha:
+ * Obrigatória no primeiro acesso e depois que o coordenador redefine a senha:
  * a pessoa troca a senha temporária por uma que só ela conhece.
  */
 export function TrocarSenhaPage() {

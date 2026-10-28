@@ -6,12 +6,18 @@ public class ColaboradorResponseDto
 {
     public int Id { get; private set; }
     public string Nome { get; private set; }
-    public bool IsCoordenador { get; private set; }
+    public bool IsSupervisor { get; private set; }
+    public ColaboradorResumoDto? RespondeA { get; private set; }
 
     public ColaboradorResponseDto(Colaborador colaborador)
     {
         Id = colaborador.Id;
         Nome = colaborador.Nome;
-        IsCoordenador = colaborador.IsCoordenador;
+        IsSupervisor = colaborador.IsSupervisor;
+        RespondeA = colaborador.RespondeA is null
+            ? null
+            : new ColaboradorResumoDto(colaborador.RespondeA.Id, colaborador.RespondeA.Nome);
     }
 }
+
+public record ColaboradorResumoDto(int Id, string Nome);

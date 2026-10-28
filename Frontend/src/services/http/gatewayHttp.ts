@@ -114,8 +114,8 @@ export function criarGatewayHttp(baseUrl: string): ApiGateway {
     usuarios: {
       listar: () => requisitar<ContaUsuario[]>('GET', '/api/Usuario'),
       criar: (dto) => requisitar<ContaUsuario>('POST', '/api/Usuario', dto),
-      definirAdministrador: (id, isAdministrador) =>
-        requisitar<ContaUsuario>('PUT', `/api/Usuario/${id}/administrador`, { isAdministrador }),
+      definirCoordenador: (id, isCoordenador) =>
+        requisitar<ContaUsuario>('PUT', `/api/Usuario/${id}/coordenador`, { isCoordenador }),
       redefinirSenha: (id, senhaTemporaria) =>
         requisitar<ContaUsuario>('POST', `/api/Usuario/${id}/redefinir-senha`, { senhaTemporaria }),
       desativar: (id) => requisitar<ContaUsuario>('POST', `/api/Usuario/${id}/desativar`),
@@ -123,7 +123,7 @@ export function criarGatewayHttp(baseUrl: string): ApiGateway {
     },
     colaboradores: {
       ...recurso<Colaborador, ColaboradorDto>('/api/Colaborador'),
-      tornarCoordenador: (id, dto) => requisitar<Colaborador>('PUT', `/api/Colaborador/${id}/coordinator`, dto),
+      tornarSupervisor: (id, dto) => requisitar<Colaborador>('PUT', `/api/Colaborador/${id}/supervisor`, dto),
     },
     periodos: recurso<Periodo, PeriodoDto>('/api/Periodo'),
     projetos: recurso<Projeto, ProjetoDto>('/api/Projeto'),

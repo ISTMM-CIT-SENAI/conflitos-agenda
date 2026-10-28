@@ -1,193 +1,181 @@
 using ConflitosAgendaApi.Dtos.Referencias;
 using ConflitosAgendaApi.Dtos.Solicitacoes;
 using ConflitosAgendaApi.Models;
-using ConflitosAgendaApi.Repositories.Interfaces;
+using ConflitosAgendaApi.Repositories;
 using ConflitosAgendaApi.Services;
-using ConflitosAgendaApi.Services.Interfaces;
 
 namespace ConflitosAgendaApi.Tests.Services;
 
-public class SolicitacaoServiceTests
+public sealed class SolicitacaoServiceTests : IDisposable
 {
+    private readonly BancoEmMemoria _banco = new();
+    private readonly SolicitacaoService _service;
+    private readonly Colaborador _coordenador;
+    private readonly Colaborador _supervisor;
+    private readonly Colaborador _colaborador;
+    private readonly Usuario _usuarioCoordenador;
+
+    public SolicitacaoServiceTests()
+    {
+        var contexto = _banco.Contexto;
+        _service = new SolicitacaoService(
+            new SolicitacaoRepository(contexto),
+            new ConflitoSolicitacaoService(new ProjetoRepository(contexto), new SolicitacaoRepository(contexto)),
+            new ColaboradorRepository(contexto),
+            new PeriodoRepository(contexto),
+            new UsuarioRepository(contexto));
+
+        _coordenador = new Colaborador("Hernane", new(), isSupervisor: true);
+        _supervisor = new Colaborador("Italo", new(), isSupervisor: true);
+        _colaborador = new Colaborador("Carlos", new(), isSupervisor: false);
+        _supervisor.DefinirRespondeA(_coordenador);
+        _colaborador.DefinirRespondeA(_supervisor);
+        contexto.Colaboradores.AddRange(_coordenador, _supervisor, _colaborador);
+        _usuarioCoordenador = new Usuario("hernane", "hash", _coordenador, isCoordenador: true);
+        contexto.Usuarios.Add(_usuarioCoordenador);
+        contexto.SaveChanges();
+    }
+
+    public void Dispose() => _banco.Dispose();
+
+    private PeriodoReferenciaDto Periodo(Colaborador dono, DateTime inicio, int dias)
+    {
+        var periodo = new Periodo(inicio, inicio.AddDays(dias), dono.Id);
+        _banco.Contexto.Periodos.Add(periodo);
+        _banco.Contexto.SaveChanges();
+        return new PeriodoReferenciaDto { Id = periodo.Id };
+    }
+
+    private static SolicitacaoInsertionDto Nova(Colaborador colaborador, bool abono = false, params PeriodoReferenciaDto[] periodos) => new()
+    {
+        Colaborador = new ColaboradorReferenciaDto { Id = colaborador.Id },
+        Periodos = periodos.ToList(),
+        Abono = abono,
+    };
+
     [Fact]
-    public async Task AddAsync_DeveRejeitarSolicitacaoSemPeriodos()
+    public async Task Add_EncaminhaParaQuemOColaboradorRespondeECalculaOTotal()
     {
-        var service = CriarService();
-        var dto = CriarInsertionDto([]);
+        var solicitacao = await _service.AddAsync(Nova(_colaborador, false,
+            Periodo(_colaborador, new DateTime(2027, 1, 4), 14),
+            Periodo(_colaborador, new DateTime(2027, 3, 1), 16)));
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => service.AddAsync(dto));
-
-        Assert.Contains("entre 1 e 3 períodos", exception.Message);
+        Assert.Equal(_supervisor.Id, solicitacao.Supervisor.Id);
+        Assert.Equal(StatusSolicitacao.Em_Analise, solicitacao.Status);
+        Assert.Equal(30, solicitacao.TotalDias);
     }
 
     [Fact]
-    public async Task AddAsync_DeveRejeitarAbonoComMaisDeDoisPeriodos()
+    public async Task Add_DoSupervisorVaiParaOCoordenador()
     {
-        var service = CriarService();
-        var dto = CriarInsertionDto(
-            [CriarReferenciaPeriodo(1), CriarReferenciaPeriodo(2), CriarReferenciaPeriodo(3)],
-            abono: true);
+        var solicitacao = await _service.AddAsync(Nova(_supervisor, false, Periodo(_supervisor, new DateTime(2027, 1, 4), 30)));
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => service.AddAsync(dto));
-
-        Assert.Contains("critérios de abono", exception.Message);
+        Assert.Equal(_coordenador.Id, solicitacao.Supervisor.Id);
     }
 
     [Fact]
-    public async Task UpdateAsync_DeveValidarAntesDeAlterarOuPersistir()
+    public async Task Add_DoCoordenadorJaNasceAprovadaComADecisaoRegistrada()
     {
-        var existente = CriarSolicitacao();
-        var repository = new FakeSolicitacaoRepository(existente);
-        var service = CriarService(repository);
-        var dto = CriarUpdateDto(
-            [CriarReferenciaPeriodo(1), CriarReferenciaPeriodo(2), CriarReferenciaPeriodo(3), CriarReferenciaPeriodo(4)]);
+        var solicitacao = await _service.AddAsync(Nova(_coordenador, false, Periodo(_coordenador, new DateTime(2027, 1, 4), 30)));
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => service.UpdateAsync(existente.Id, dto));
-
-        Assert.Single(existente.Periodos);
-        Assert.False(repository.UpdateCalled);
+        Assert.Equal(StatusSolicitacao.Aprovada, solicitacao.Status);
+        Assert.Equal(_usuarioCoordenador.Id, solicitacao.DecididaPorId);
+        Assert.NotNull(solicitacao.DecididaEm);
     }
 
     [Fact]
-    public async Task GetByIdAsync_DeveRetornarNullQuandoNaoEncontrar()
+    public async Task Add_SemRespondeAFalha()
     {
-        var service = CriarService(new FakeSolicitacaoRepository(null));
+        var semSuperior = new Colaborador("Sem Superior", new(), false);
+        _banco.Contexto.Colaboradores.Add(semSuperior);
+        await _banco.Contexto.SaveChangesAsync();
 
-        var resultado = await service.GetByIdAsync(99);
-
-        Assert.Null(resultado);
+        var erro = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAsync(Nova(semSuperior, false, Periodo(semSuperior, new DateTime(2027, 1, 4), 30))));
+        Assert.Contains("Responde a", erro.Message);
     }
 
-    private static SolicitacaoService CriarService(
-        ISolicitacaoRepository? repository = null)
+    [Fact]
+    public async Task Add_FeriasEmPartesAteOSaldoDoAno_RecusadaNaoConta()
     {
-        return new SolicitacaoService(
-            repository ?? new FakeSolicitacaoRepository(CriarSolicitacao()),
-            new FakeConflitoSolicitacaoService(),
-            new FakeColaboradorRepository(),
-            new FakePeriodoRepository());
+        // 15 dias agora e 15 depois: cada pedido é uma parte das férias de 2027.
+        var primeira = await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 1, 4), 15)));
+        await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 8, 2), 15)));
+
+        var erro = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 10, 4), 5))));
+        Assert.Contains("35 dias de férias em 2027", erro.Message);
+
+        // Em outro ano, o saldo é outro.
+        await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2028, 1, 3), 30)));
+
+        primeira.Reprovar("Conflito com o projeto.");
+        await _banco.Contexto.SaveChangesAsync();
+        await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 10, 4), 15)));
     }
 
-    private static SolicitacaoInsertionDto CriarInsertionDto(
-        List<PeriodoReferenciaDto> periodos,
-        bool abono = false)
+    [Fact]
+    public async Task Update_ValidaAntesDeAlterarENaoMudaOSupervisor()
     {
-        return new SolicitacaoInsertionDto
+        var original = Periodo(_colaborador, new DateTime(2027, 1, 4), 30);
+        var solicitacao = await _service.AddAsync(Nova(_colaborador, false, original));
+
+        var invalido = new SolicitacaoUpdateDto
         {
-            Colaborador = new ColaboradorReferenciaDto { Id = 1 },
-            Periodos = periodos,
-            Coordenador = new ColaboradorReferenciaDto { Id = 2 },
-            TotalDias = abono ? 10 : 10,
-            Abono = abono
+            Colaborador = new ColaboradorReferenciaDto { Id = _colaborador.Id },
+            Periodos = [Periodo(_colaborador, new DateTime(2027, 6, 7), 4)],
         };
-    }
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(solicitacao.Id, invalido));
+        Assert.Equal(original.Id, Assert.Single(solicitacao.Periodos).Id);
 
-    private static SolicitacaoUpdateDto CriarUpdateDto(List<PeriodoReferenciaDto> periodos)
-    {
-        return new SolicitacaoUpdateDto
+        var atualizada = await _service.UpdateAsync(solicitacao.Id, new SolicitacaoUpdateDto
         {
-            Colaborador = new ColaboradorReferenciaDto { Id = 1 },
-            Periodos = periodos,
-            Coordenador = new ColaboradorReferenciaDto { Id = 2 }
-        };
+            Colaborador = new ColaboradorReferenciaDto { Id = _colaborador.Id },
+            Periodos = [Periodo(_colaborador, new DateTime(2027, 6, 7), 14), Periodo(_colaborador, new DateTime(2027, 9, 6), 16)],
+        });
+        Assert.Equal(_supervisor.Id, atualizada!.Supervisor.Id);
+        Assert.Equal(30, atualizada.TotalDias);
     }
 
-    private static PeriodoReferenciaDto CriarReferenciaPeriodo(int id)
+    [Fact]
+    public async Task NaoAceitaPeriodoDeOutraPessoa()
     {
-        return new PeriodoReferenciaDto { Id = id };
+        var doSupervisor = Periodo(_supervisor, new DateTime(2027, 1, 4), 30);
+        await _service.AddAsync(Nova(_supervisor, false, doSupervisor));
+
+        var erro = await Assert.ThrowsAsync<ArgumentException>(() => _service.AddAsync(Nova(_colaborador, false, doSupervisor)));
+        Assert.Contains("devem pertencer ao colaborador", erro.Message);
     }
 
-    private static Solicitacao CriarSolicitacao()
+    [Fact]
+    public async Task Update_NaoTrocaOColaborador()
     {
-        return new Solicitacao(
-            CriarColaborador(),
-            [CriarPeriodo()],
-            StatusSolicitacao.Em_Analise,
-            DateTimeOffset.UtcNow,
-            CriarColaborador());
-    }
+        var solicitacao = await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 1, 4), 30)));
 
-    private static Colaborador CriarColaborador()
-    {
-        return new Colaborador("Pessoa", new(), false);
-    }
-
-    private static Periodo CriarPeriodo()
-    {
-        return new Periodo(
-            new DateTime(2026, 10, 1),
-            new DateTime(2026, 10, 11));
-    }
-
-    /// <summary>Devolve um colaborador para qualquer ID.</summary>
-    private sealed class FakeColaboradorRepository : IColaboradorRepository
-    {
-        public Task<Colaborador?> GetByIdAsync(int id) =>
-            Task.FromResult<Colaborador?>(CriarColaborador());
-        public Task<IEnumerable<Colaborador>> ListAllAsync() =>
-            Task.FromResult<IEnumerable<Colaborador>>([]);
-        public Task<Colaborador?> AddAsync(Colaborador colaborador) => Task.FromResult<Colaborador?>(colaborador);
-        public Task<Colaborador?> UpdateAsync(Colaborador colaborador) => Task.FromResult<Colaborador?>(colaborador);
-        public Task<Colaborador?> DeleteAsync(int id) => Task.FromResult<Colaborador?>(null);
-        public Task<Colaborador?> TornarCoordenadorAsync(int id) => Task.FromResult<Colaborador?>(null);
-        public Task<bool> ExisteComNomeAsync(string nome, int? ignorarId = null) => Task.FromResult(false);
-    }
-
-    /// <summary>Devolve um período válido para qualquer ID.</summary>
-    private sealed class FakePeriodoRepository : IPeriodoRepository
-    {
-        public Task<Periodo?> GetByIdAsync(int id) => Task.FromResult<Periodo?>(CriarPeriodo());
-        public Task<IEnumerable<Periodo>> ListAllAsync() => Task.FromResult<IEnumerable<Periodo>>([]);
-        public Task<Periodo?> AddAsync(Periodo periodo) => Task.FromResult<Periodo?>(periodo);
-        public Task<Periodo?> UpdateAsync(Periodo periodo) => Task.FromResult<Periodo?>(periodo);
-        public Task<Periodo?> DeleteAsync(int id) => Task.FromResult<Periodo?>(null);
-        public Task<IEnumerable<Periodo>> ListByColaboradorIdAsync(int colaboradorId) =>
-            Task.FromResult<IEnumerable<Periodo>>([]);
-    }
-
-    private sealed class FakeConflitoSolicitacaoService : IConflitoSolicitacaoService
-    {
-        public Task<bool> PossuiConflitoAsync(Solicitacao solicitacao)
+        var erro = await Assert.ThrowsAsync<ArgumentException>(() => _service.UpdateAsync(solicitacao.Id, new SolicitacaoUpdateDto
         {
-            return Task.FromResult(false);
-        }
+            Colaborador = new ColaboradorReferenciaDto { Id = _supervisor.Id },
+            Periodos = [Periodo(_supervisor, new DateTime(2027, 1, 4), 30)],
+        }));
+        Assert.Contains("não pode ser trocado", erro.Message);
     }
 
-    private sealed class FakeSolicitacaoRepository : ISolicitacaoRepository
+    [Fact]
+    public async Task GetByIdAsync_DeveRetornarNullQuandoNaoEncontrar() =>
+        Assert.Null(await _service.GetByIdAsync(99));
+
+    [Fact]
+    public async Task PessoaCriticaPodeSerColaboradorDeQualquerNivel()
     {
-        private readonly Solicitacao? _solicitacao;
-        public bool UpdateCalled { get; private set; }
+        var colega = new Colaborador("Domisley", new(), isSupervisor: false);
+        colega.DefinirRespondeA(_supervisor);
+        _banco.Contexto.Colaboradores.Add(colega);
+        _banco.Contexto.Projetos.Add(new Projeto("SOAR", [_colaborador, colega], [_colaborador, colega]));
+        await _banco.Contexto.SaveChangesAsync();
+        await _service.AddAsync(Nova(colega, false, Periodo(colega, new DateTime(2027, 1, 11), 30)));
 
-        public FakeSolicitacaoRepository(Solicitacao? solicitacao)
-        {
-            _solicitacao = solicitacao;
-        }
+        var solicitacao = await _service.AddAsync(Nova(_colaborador, false, Periodo(_colaborador, new DateTime(2027, 1, 4), 30)));
 
-        public Task<Solicitacao?> GetByIdAsync(int id) =>
-            Task.FromResult(_solicitacao);
-
-        public Task<List<Solicitacao>> GetAllAsync() =>
-            Task.FromResult(_solicitacao is null
-                ? new List<Solicitacao>()
-                : new List<Solicitacao> { _solicitacao });
-
-        public Task<List<Solicitacao>> GetByColaboradorIdAsync(int colaboradorId) =>
-            GetAllAsync();
-
-        public Task<List<Solicitacao>> GetByStatusAsync(StatusSolicitacao status) =>
-            GetAllAsync();
-
-        public Task AddAsync(Solicitacao solicitacao) => Task.CompletedTask;
-
-        public Task UpdateAsync(Solicitacao solicitacao)
-        {
-            UpdateCalled = true;
-            return Task.CompletedTask;
-        }
-
-        public Task DeleteAsync(int id) => Task.CompletedTask;
+        Assert.False(await _service.ValidateSolicitacaoAsync(solicitacao.Id));
     }
 }

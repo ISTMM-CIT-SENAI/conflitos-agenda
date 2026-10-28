@@ -11,17 +11,15 @@ dotnet run --launch-profile http
 
 O banco é **SQLite**: o arquivo `conflitos-agenda.db` é criado na pasta da API e as migrations pendentes são aplicadas automaticamente na inicialização. Para usar outro arquivo ou caminho (por exemplo, um volume persistente no servidor), defina a variável `ConnectionStrings__DefaultConnection`, por exemplo `Data Source=/dados/conflitos-agenda.db`. Para recomeçar do zero, pare a API e apague os arquivos `conflitos-agenda.db*`.
 
-### Primeiro administrador
+### Carga inicial do ISTMM
 
-Num banco sem usuários, a API cria na inicialização o primeiro **Administrador** e o Colaborador dele, a partir da configuração:
+Num banco **sem colaboradores**, a API cadastra na inicialização as pessoas e os projetos do ISTMM, a partir de `data/seed-istmm.json` (gerado de `docs/planilhas/funcionarios.xlsx` e `pontos focais.xlsx`):
 
-| Chave | Variável de ambiente | Desenvolvimento |
-|---|---|---|
-| `Admin:Usuario` | `Admin__Usuario` | `admin` |
-| `Admin:SenhaInicial` | `Admin__SenhaInicial` | `admin` |
-| `Admin:NomeCompleto` | `Admin__NomeCompleto` | `Administrador do Setor` |
+- 39 colaboradores com a hierarquia ("Responde a"): o coordenador, 3 supervisores e os demais;
+- os 10 projetos do ISTMM, com os responsáveis técnicos principal e secundário como membros e pessoas críticas;
+- um usuário por pessoa (`primeironome.ultimosobrenome`; se coincidir, entra o segundo nome), com **senha temporária aleatória** e troca obrigatória no primeiro acesso.
 
-Os valores de desenvolvimento estão em `appsettings.Development.json`. A senha inicial é temporária: no primeiro login é obrigatório defini-la de novo. Em produção, defina as variáveis de ambiente; sem elas, ninguém consegue entrar.
+As senhas são gravadas **uma única vez** em `credenciais-iniciais.csv`, na pasta da API (fora do git; abre no Excel). Entregue a senha de cada pessoa individualmente e apague o arquivo. Se o banco já tiver colaboradores, nada é feito: para refazer a carga, apague `conflitos-agenda.db*`.
 
 Perfis configurados em `Backend/ConflitosAgendaApi/Properties/launchSettings.json`:
 
@@ -68,19 +66,19 @@ Toda rota exige login, exceto `POST /api/Auth/login` e `POST /api/Auth/logout`. 
 
 **Regras de credenciais:** nome de usuário de 3 a 30 caracteres (letras, números, `.`, `_`, `-`), único e sem diferenciar maiúsculas; senha com no mínimo 8 caracteres; após 5 tentativas erradas, o login fica bloqueado por 15 minutos. Trocar ou redefinir a senha, ou desativar o usuário, encerra as sessões abertas dele.
 
-**Níveis de acesso.** O nível é **Administrador** quando marcado no Usuário; senão, é derivado do Colaborador ligado: **Coordenador** se ele for coordenador, **Colaborador** caso contrário.
+**Níveis de acesso.** O nível é **Coordenador** quando marcado no Usuário; senão, é derivado do Colaborador ligado: **Supervisor** se ele for supervisor, **Colaborador** caso contrário.
 
-| Ação | Administrador | Coordenador | Colaborador |
+| Ação | Coordenador | Supervisor | Colaborador |
 |---|:---:|:---:|:---:|
-| Criar/alterar/excluir colaboradores e projetos; tornar coordenador; gerenciar usuários | ✅ | ❌ | ❌ |
+| Criar/alterar/excluir colaboradores e projetos; tornar supervisor; gerenciar usuários | ✅ | ❌ | ❌ |
 | Listar colaboradores e projetos | ✅ | ✅ | ✅ |
-| Ver solicitações | todas | próprias e atribuídas a ele | próprias |
+| Ver solicitações | todas | próprias e de quem responde a ele | próprias |
 | Ver períodos | todos | próprios + ausências planejadas dos colegas de projeto | idem |
 | Criar/alterar períodos e solicitações | de qualquer colaborador | próprios | próprios |
-| Aprovar/recusar (status 2 e 3) | qualquer uma, exceto a própria | atribuídas a ele, exceto a própria | ❌ |
+| Aprovar/recusar (status 2 e 3) | qualquer uma, exceto a própria | de quem responde a ele | ❌ |
 | Excluir solicitação | qualquer uma | própria, antes da decisão | própria, antes da decisão |
 
-O Coordenador que não é dono da solicitação só pode mudar o status (validar, aprovar, recusar), não o conteúdo. Ao aprovar ou recusar, a solicitação registra quem decidiu (`decididaPor`) e quando (`decididaEm`).
+O Supervisor que não é dono da solicitação só pode mudar o status (validar, aprovar, recusar), não o conteúdo. Ao aprovar ou recusar, a solicitação registra quem decidiu (`decididaPor`) e quando (`decididaEm`).
 
 ### Endpoints de autenticação
 
@@ -96,22 +94,22 @@ Usuário logado:
 ```json
 {
   "id": 1,
-  "nomeUsuario": "admin",
-  "nivel": "administrador",
+  "nomeUsuario": "hernane.moreira",
+  "nivel": "coordenador",
   "precisaTrocarSenha": false,
-  "colaborador": { "id": 1, "nome": "Administrador do Setor", "isCoordenador": true }
+  "colaborador": { "id": 1, "nome": "Hernane do Bom Sucesso Xavier Moreira", "isSupervisor": true }
 }
 ```
 
-### Endpoints de usuários (somente Administrador)
+### Endpoints de usuários (somente Coordenador)
 
 | Método | Rota | Corpo | Observação |
 |---|---|---|---|
 | `GET` | `/api/Usuario` | — | Lista as contas, com situação (`ativo`, `bloqueado`, `precisaTrocarSenha`) |
-| `POST` | `/api/Usuario` | `{ "colaboradorId", "nomeUsuario", "senhaTemporaria", "isAdministrador" }` | Cada colaborador tem no máximo um usuário |
-| `PUT` | `/api/Usuario/{id}/administrador` | `{ "isAdministrador" }` | Ninguém remove o próprio acesso de administrador |
+| `POST` | `/api/Usuario` | `{ "colaboradorId", "nomeUsuario", "senhaTemporaria", "isCoordenador" }` | Cada colaborador tem no máximo um usuário |
+| `PUT` | `/api/Usuario/{id}/coordenador` | `{ "isCoordenador" }` | Ninguém remove o próprio acesso de coordenador |
 | `POST` | `/api/Usuario/{id}/redefinir-senha` | `{ "senhaTemporaria" }` | Obriga a troca no próximo login |
-| `POST` | `/api/Usuario/{id}/desativar` | — | Não é possível desativar a si mesmo nem o último administrador ativo |
+| `POST` | `/api/Usuario/{id}/desativar` | — | Não é possível desativar a si mesmo nem o último coordenador ativo |
 | `POST` | `/api/Usuario/{id}/reativar` | — | |
 
 ## Resumo dos endpoints
@@ -123,15 +121,13 @@ Usuário logado:
 | Colaborador | `POST` | `/api/Colaborador` | Criar colaborador |
 | Colaborador | `PUT` | `/api/Colaborador/{id}` | Atualizar colaborador |
 | Colaborador | `DELETE` | `/api/Colaborador/{id}` | Excluir colaborador |
-| Colaborador | `PUT` | `/api/Colaborador/{id}/coordinator` | Tornar colaborador coordenador |
+| Colaborador | `PUT` | `/api/Colaborador/{id}/supervisor` | Tornar colaborador supervisor |
 | Período | `GET` | `/api/Periodo` | Listar períodos |
 | Período | `GET` | `/api/Periodo/{id}` | Buscar período |
 | Período | `POST` | `/api/Periodo` | Criar período |
 | Período | `PUT` | `/api/Periodo/{id}` | Atualizar período |
 | Período | `DELETE` | `/api/Periodo/{id}` | Excluir período |
 | Período | `GET` | `/api/Periodo/colaborador/{colaboradorId}` | Listar períodos de um colaborador |
-| Período | `GET` | `/api/Periodo/validar/{periodoId}` | Verificar existência de período |
-| Período | `GET` | `/api/Periodo/validar` | Validar intervalo de datas |
 | Projeto | `GET` | `/api/Projeto` | Listar projetos |
 | Projeto | `GET` | `/api/Projeto/{id}` | Buscar projeto |
 | Projeto | `POST` | `/api/Projeto` | Criar projeto |
@@ -142,7 +138,6 @@ Usuário logado:
 | Solicitação | `GET` | `/api/Solicitacao/{id}` | Buscar solicitação |
 | Solicitação | `GET` | `/api/Solicitacao/colaborador/{colaboradorId}` | Listar solicitações de um colaborador |
 | Solicitação | `GET` | `/api/Solicitacao/periodo/{periodoId}` | Listar solicitações de um período |
-| Solicitação | `GET` | `/api/Solicitacao/projeto/{projetoId}` | Rota legada; atualmente filtra por período |
 | Solicitação | `GET` | `/api/Solicitacao/status/{status}` | Listar solicitações por status |
 | Solicitação | `POST` | `/api/Solicitacao` | Criar solicitação |
 | Solicitação | `PUT` | `/api/Solicitacao/{id}` | Atualizar solicitação |
@@ -182,7 +177,8 @@ Corpo:
 
 ```json
 {
-  "nome": "Maria Silva"
+  "nome": "Maria Silva",
+  "respondeAId": 2
 }
 ```
 
@@ -191,6 +187,7 @@ Campos:
 | Campo | Tipo | Obrigatório | Observação |
 |---|---|---:|---|
 | `nome` | `string` | Sim | Nome completo; único, sem diferenciar maiúsculas. O sistema não guarda e-mail (ver ADR 0003) |
+| `respondeAId` | `int?` | Não | Supervisor que recebe as solicitações; precisa ser supervisor e não pode ser o próprio. Nulo só para o Coordenador. A resposta traz `respondeA: { id, nome }` |
 
 Resposta: `201 Created`.
 
@@ -204,9 +201,12 @@ Corpo:
 
 ```json
 {
-  "nome": "Maria Souza"
+  "nome": "Maria Souza",
+  "respondeAId": 2
 }
 ```
+
+Envie sempre `respondeAId`: omitido, ele é gravado como nulo.
 
 Resposta:
 
@@ -226,21 +226,22 @@ Resposta:
 - `400 Bad Request` quando o colaborador tem acesso ativo ao sistema (desative o usuário antes; um usuário já desativado é excluído junto);
 - `409 Conflict` quando ainda há períodos, solicitações ou decisões vinculados.
 
-### Tornar colaborador coordenador
+### Tornar colaborador supervisor
 
 ```http
-PUT /api/Colaborador/{id}/coordinator
+PUT /api/Colaborador/{id}/supervisor
 ```
 
 O controller recebe `ColaboradorUpdateDto`, portanto o corpo esperado atualmente é:
 
 ```json
 {
-  "nome": "Maria Silva"
+  "nome": "Maria Silva",
+  "respondeAId": 2
 }
 ```
 
-O valor de `nome` é recebido, mas a operação utiliza apenas o identificador para marcar o colaborador como coordenador.
+O valor de `nome` é recebido, mas a operação utiliza apenas o identificador para marcar o colaborador como supervisor.
 
 Resposta:
 
@@ -292,7 +293,7 @@ Campos:
 | Campo | Tipo | Obrigatório | Observação |
 |---|---|---:|---|
 | `dataInicio` | `DateTime` | Sim | Deve ser anterior a `dataFim` |
-| `dataFim` | `DateTime` | Sim | Intervalo deve ter entre 10 e 30 dias |
+| `dataFim` | `DateTime` | Sim | Retorno: de 5 a 30 dias após o início. O início não pode cair nos 2 dias antes de domingo ou feriado (nacional ou de BH) |
 | `idColaborador` | `int` | Sim | Colaborador dono do período |
 
 Resposta:
@@ -322,7 +323,7 @@ Resposta:
 
 - `200 OK` quando atualizado;
 - `404 Not Found` quando não encontrado;
-- `400 Bad Request` quando o intervalo é inválido.
+- `400 Bad Request` quando o intervalo é inválido, quando o período faz parte de uma solicitação já decidida, ou quando a solicitação em aberto ficaria fora das regras da CLT para o ano.
 
 ### Excluir período
 
@@ -333,7 +334,8 @@ DELETE /api/Periodo/{id}
 Resposta:
 
 - `204 No Content` quando excluído;
-- `404 Not Found` quando não encontrado.
+- `404 Not Found` quando não encontrado;
+- `400 Bad Request` quando o período faz parte de uma solicitação.
 
 ### Listar períodos por colaborador
 
@@ -342,35 +344,6 @@ GET /api/Periodo/colaborador/{colaboradorId}
 ```
 
 Resposta: `200 OK` com os períodos associados ao colaborador.
-
-### Validar existência de período
-
-```http
-GET /api/Periodo/validar/{periodoId}
-```
-
-Resposta:
-
-- `200 OK` quando o período existe;
-- `400 Bad Request` quando o período não existe.
-
-### Validar intervalo de datas
-
-```http
-GET /api/Periodo/validar?dataInicio=2026-10-15T00:00:00&dataFim=2026-10-25T00:00:00
-```
-
-Parâmetros query:
-
-| Parâmetro | Tipo | Obrigatório | Regra |
-|---|---|---:|---|
-| `dataInicio` | `DateTime` | Sim | Deve ser anterior a `dataFim` |
-| `dataFim` | `DateTime` | Sim | Intervalo mínimo de 10 dias e máximo de 30 dias |
-
-Resposta:
-
-- `200 OK` quando válido;
-- `400 Bad Request` quando inválido.
 
 ---
 
@@ -410,14 +383,14 @@ Corpo:
     {
       "id": 2,
       "nome": "João Santos",
-      "isCoordenador": false
+      "isSupervisor": false
     }
   ],
   "colaboradores": [
     {
       "id": 1,
       "nome": "Maria Silva",
-      "isCoordenador": true
+      "isSupervisor": true
     }
   ]
 }
@@ -437,7 +410,7 @@ Objeto `Colaborador`:
 |---|---|
 | `id` | `int` |
 | `nome` | `string` |
-| `isCoordenador` | `bool` |
+| `isSupervisor` | `bool` |
 
 Resposta: `201 Created`.
 
@@ -457,7 +430,7 @@ O corpo possui o mesmo formato da criação:
     {
       "id": 1,
       "nome": "Maria Silva",
-      "isCoordenador": true
+      "isSupervisor": true
     }
   ]
 }
@@ -536,14 +509,6 @@ Resposta:
 - `200 OK` com as solicitações associadas;
 - `404 Not Found` quando não houver solicitações.
 
-### Rota legada `projeto`
-
-```http
-GET /api/Solicitacao/projeto/{projetoId}
-```
-
-Esta rota é mantida por compatibilidade. Apesar do nome e do parâmetro `projetoId`, a implementação atual encaminha a chamada para a consulta por período e filtra pelo ID informado como se fosse um `periodoId`.
-
 ### Listar solicitações por status
 
 ```http
@@ -583,7 +548,7 @@ Corpo:
   "colaborador": {
     "id": 1,
     "nome": "Maria Silva",
-    "isCoordenador": false
+    "isSupervisor": false
   },
   "periodos": [
     {
@@ -593,15 +558,8 @@ Corpo:
       "idColaborador": 1
     }
   ],
-  "status": 1,
   "criadaEm": "2026-10-14T11:00:00-03:00",
-  "coordenador": {
-    "id": 2,
-    "nome": "João Santos",
-    "isCoordenador": true
-  },
   "observacao": "Solicitação de ausência.",
-  "totalDias": 10,
   "abono": false,
   "isPessoaCritica": false
 }
@@ -613,19 +571,18 @@ Campos:
 |---|---|---:|---|
 | `colaborador` | `Colaborador` | Sim | Objeto completo |
 | `periodos` | `array<Periodo>` | Sim | Entre 1 e 3 períodos |
-| `status` | `int` | Sim | Use os valores do enum |
 | `criadaEm` | `DateTimeOffset` | Sim | Data de criação |
-| `coordenador` | `Colaborador` | Sim | Objeto completo |
 | `observacao` | `string` | Não | Observação opcional |
-| `totalDias` | `int` | Sim | Total de dias informado |
-| `abono` | `bool` | Sim | Quando `true`, permite no máximo 2 períodos e 20 dias |
+| `abono` | `bool` | Sim | Abono pecuniário: quando `true`, os períodos somam 20 dias em vez de 30 |
 | `isPessoaCritica` | `bool` | Sim | Indica se o solicitante é pessoa crítica |
 
-Regras adicionais aplicadas pelo service:
+Regras aplicadas pelo service (CLT, art. 134 e 143):
 
-- a solicitação deve conter entre 1 e 3 períodos;
-- quando `abono` for `true`, deve conter no máximo 2 períodos;
-- quando `abono` for `true`, `totalDias` não pode ser maior que 20.
+- entre 1 e 3 períodos, cada um com pelo menos 5 dias;
+- a solicitação pode ser só uma parte das férias. Somando as solicitações não recusadas do colaborador no mesmo ano civil (o do primeiro dia de ausência de cada uma): no máximo 3 períodos e 30 dias, ou 20 se alguma tiver `abono`;
+- um dos períodos do ano precisa ter pelo menos 14 dias: sem nenhum até ali, o pedido é recusado se não sobrar espaço (dias e períodos) para ele;
+- o supervisor não vem no corpo: é quem o colaborador responde (`respondeA`), e não muda depois. Sem `respondeA`, a criação falha, exceto para o Coordenador, cuja solicitação já nasce **Aprovada** com a Decisão registrada;
+- `status` e `totalDias` são definidos pela API (`Em_Analise` e a soma dos períodos).
 
 Resposta: `201 Created`.
 
@@ -642,7 +599,7 @@ Corpo:
   "colaborador": {
     "id": 1,
     "nome": "Maria Silva",
-    "isCoordenador": false
+    "isSupervisor": false
   },
   "periodos": [
     {
@@ -654,17 +611,11 @@ Corpo:
   ],
   "status": 1,
   "criadaEm": "2026-10-14T11:00:00-03:00",
-  "coordenador": {
-    "id": 2,
-    "nome": "João Santos",
-    "isCoordenador": true
-  },
-  "observacao": "Período atualizado.",
-  "totalDias": 10
+  "observacao": "Período atualizado."
 }
 ```
 
-O `id` da rota identifica a solicitação. As regras de quantidade de períodos e abono são reaplicadas antes da persistência.
+O `id` da rota identifica a solicitação. As regras da CLT para o ano são reaplicadas antes da persistência; o supervisor encaminhado é mantido.
 
 Resposta:
 
@@ -701,9 +652,7 @@ Resposta:
 
 ## Divergências atuais documentadas
 
-1. `GET /api/Solicitacao/projeto/{projetoId}` possui nome de projeto, mas atualmente filtra por período.
-2. O endpoint `PUT /api/Colaborador/{id}/coordinator` recebe `nome`, embora use apenas o ID para tornar o colaborador coordenador.
-3. Projetos e solicitações recebem objetos completos nos payloads, embora só o `id` seja usado.
-4. `PUT /api/Solicitacao/{id}/validate` retorna apenas um booleano e não altera o status da solicitação.
-5. A validação de conflito só considera solicitantes que são pessoas críticas e compara com todos os períodos das outras pessoas críticas, inclusive os de solicitações recusadas.
-6. Cada período pertence a no máximo uma solicitação no banco: usar um período em outra solicitação o remove da anterior.
+1. O endpoint `PUT /api/Colaborador/{id}/supervisor` recebe `nome`, embora use apenas o ID para tornar o colaborador supervisor.
+2. Projetos e solicitações recebem objetos completos nos payloads, embora só o `id` seja usado.
+3. `PUT /api/Solicitacao/{id}/validate` retorna apenas um booleano e não altera o status da solicitação.
+4. Cada período pertence a no máximo uma solicitação no banco. Por isso a API recusa períodos de outra pessoa numa solicitação, e não deixa alterar nem excluir um período que já faz parte de uma.

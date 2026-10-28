@@ -12,5 +12,5 @@ public class ColaboradorReferenciaDto
     [Range(1, int.MaxValue, ErrorMessage = "Informe o ID de um colaborador existente.")]
     public int Id { get; set; }
     public string? Nome { get; set; }
-    public bool IsCoordenador { get; set; }
+    public bool IsSupervisor { get; set; }
 }

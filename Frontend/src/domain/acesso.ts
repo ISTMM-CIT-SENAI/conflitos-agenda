@@ -8,13 +8,13 @@ import { isStatusFinal } from './enums/statusSolicitacao';
  */
 
 export const ROTULO_NIVEL: Record<NivelAcesso, string> = {
-  administrador: 'Administrador',
   coordenador: 'Coordenador',
+  supervisor: 'Supervisor',
   colaborador: 'Colaborador',
 };
 
-export function ehAdministrador(usuario: UsuarioLogado): boolean {
-  return usuario.nivel === 'administrador';
+export function ehCoordenador(usuario: UsuarioLogado): boolean {
+  return usuario.nivel === 'coordenador';
 }
 
 export function ehDono(usuario: UsuarioLogado, colaboradorId: number): boolean {
@@ -23,25 +23,25 @@ export function ehDono(usuario: UsuarioLogado, colaboradorId: number): boolean {
 
 type SolicitacaoResumo = Pick<Solicitacao, 'status'> & {
   colaborador: { id: number };
-  coordenador: { id: number };
+  supervisor: { id: number };
 };
 
-/** Administrador vê todas; os demais veem as próprias e, se coordenadores, as atribuídas a eles. */
+/** Coordenador vê todas; os demais veem as próprias e, se supervisores, as atribuídas a eles. */
 export function podeVerSolicitacao(usuario: UsuarioLogado, s: SolicitacaoResumo): boolean {
-  return ehAdministrador(usuario) || ehDono(usuario, s.colaborador.id) || usuario.colaborador.id === s.coordenador.id;
+  return ehCoordenador(usuario) || ehDono(usuario, s.colaborador.id) || usuario.colaborador.id === s.supervisor.id;
 }
 
-/** Alterar períodos, coordenador e abono. */
+/** Alterar períodos, supervisor e abono. */
 export function podeEditarSolicitacao(usuario: UsuarioLogado, s: SolicitacaoResumo): boolean {
-  return !isStatusFinal(s.status) && (ehAdministrador(usuario) || ehDono(usuario, s.colaborador.id));
+  return !isStatusFinal(s.status) && (ehCoordenador(usuario) || ehDono(usuario, s.colaborador.id));
 }
 
-/** Aprovar ou recusar: o Coordenador escolhido ou um Administrador, nunca o próprio solicitante. */
+/** Aprovar ou recusar: o Supervisor encaminhado ou o Coordenador, nunca o próprio solicitante. */
 export function podeDecidir(usuario: UsuarioLogado, s: SolicitacaoResumo): boolean {
   return (
     !isStatusFinal(s.status) &&
     !ehDono(usuario, s.colaborador.id) &&
-    (ehAdministrador(usuario) || usuario.colaborador.id === s.coordenador.id)
+    (ehCoordenador(usuario) || usuario.colaborador.id === s.supervisor.id)
   );
 }
 
@@ -49,14 +49,14 @@ export function podeValidarConflito(usuario: UsuarioLogado, s: SolicitacaoResumo
   return !isStatusFinal(s.status) && podeVerSolicitacao(usuario, s);
 }
 
-/** Administrador exclui qualquer uma; o dono, só antes da Decisão. */
+/** Coordenador exclui qualquer uma; o dono, só antes da Decisão. */
 export function podeExcluirSolicitacao(usuario: UsuarioLogado, s: SolicitacaoResumo): boolean {
-  return ehAdministrador(usuario) || (ehDono(usuario, s.colaborador.id) && !isStatusFinal(s.status));
+  return ehCoordenador(usuario) || (ehDono(usuario, s.colaborador.id) && !isStatusFinal(s.status));
 }
 
-/** Só o dono do período (ou um Administrador) cria, altera ou exclui. */
+/** Só o dono do período (ou um Coordenador) cria, altera ou exclui. */
 export function podeGerenciarPeriodo(usuario: UsuarioLogado, idColaborador: number): boolean {
-  return ehAdministrador(usuario) || ehDono(usuario, idColaborador);
+  return ehCoordenador(usuario) || ehDono(usuario, idColaborador);
 }
 
 const PADRAO_NOME_USUARIO = /^[A-Za-z0-9._-]{3,30}$/;

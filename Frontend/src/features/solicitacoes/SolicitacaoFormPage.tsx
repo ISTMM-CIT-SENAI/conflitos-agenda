@@ -35,14 +35,18 @@ import { periodosDisponiveis } from '@/domain/consultas';
 import type { Periodo, Solicitacao } from '@/domain/entities';
 import { isStatusFinal } from '@/domain/enums/statusSolicitacao';
 import { useUsuarioLogado } from '@/app/providers/useSessao';
-import { ehAdministrador, podeEditarSolicitacao } from '@/domain/acesso';
+import { ehCoordenador, podeEditarSolicitacao } from '@/domain/acesso';
+import { DURACAO_MINIMA_DIAS, duracaoDoPeriodo } from '@/domain/validation/periodo';
 import {
-  MAX_DIAS_ABONO,
+  DIAS_FERIAS,
+  DIAS_FERIAS_COM_ABONO,
   MAX_PERIODOS,
-  MAX_PERIODOS_ABONO,
+  MIN_DIAS_PERIODO_PRINCIPAL,
   calcularTotalDias,
   isPessoaCriticaEmAlgumProjeto,
+  saldoDoAno,
   validarRegrasSolicitacao,
+  type ViolacaoRegra,
 } from '@/domain/validation/solicitacao';
 import { useColaboradores, useMutacao, usePeriodos, useProjetos, useSolicitacoes } from '@/hooks/useDados';
 import { descreverPeriodo } from '../periodos/formatacao';
@@ -51,20 +55,31 @@ import { StatusChip } from '@/components/common/StatusChip';
 
 interface Formulario {
   colaboradorId: number | null;
-  coordenadorId: number | null;
   periodoIds: number[];
   abono: boolean;
   observacao: string;
 }
 
-const CAMPOS: (keyof Formulario)[] = ['colaboradorId', 'coordenadorId', 'periodoIds', 'abono', 'observacao'];
+const CAMPOS: (keyof Formulario)[] = ['colaboradorId', 'periodoIds', 'abono', 'observacao'];
 
-/** Esquema depende dos períodos carregados, pois o Total de Dias é derivado deles. */
-function criarEsquema(periodos: readonly Periodo[]) {
+/** Regras do pedido e, se ele estiver certo, do saldo de férias do ano. */
+function violacoesDoPedido(
+  solicitacoes: readonly Solicitacao[],
+  colaboradorId: number | null,
+  selecionados: readonly Periodo[],
+  abono: boolean,
+  id: number | null,
+): ViolacaoRegra[] {
+  const doPedido = validarRegrasSolicitacao({ duracoes: selecionados.map(duracaoDoPeriodo) });
+  if (doPedido.length > 0 || colaboradorId === null) return doPedido;
+  return saldoDoAno(solicitacoes, colaboradorId, selecionados, abono, id ?? undefined)?.violacoes ?? [];
+}
+
+/** Esquema depende dos períodos e das solicitações carregados: o saldo do ano é derivado deles. */
+function criarEsquema(periodos: readonly Periodo[], solicitacoes: readonly Solicitacao[], id: number | null) {
   return z
     .object({
       colaboradorId: z.number().nullable(),
-      coordenadorId: z.number().nullable(),
       periodoIds: z.array(z.number()),
       abono: z.boolean(),
       observacao: z.string().max(500, 'A observação deve ter no máximo 500 caracteres.'),
@@ -73,17 +88,8 @@ function criarEsquema(periodos: readonly Periodo[]) {
       if (dados.colaboradorId === null) {
         ctx.addIssue({ code: 'custom', path: ['colaboradorId'], message: 'Selecione o colaborador.' });
       }
-      if (dados.coordenadorId === null) {
-        ctx.addIssue({ code: 'custom', path: ['coordenadorId'], message: 'Selecione o coordenador.' });
-      } else if (dados.coordenadorId === dados.colaboradorId) {
-        ctx.addIssue({ code: 'custom', path: ['coordenadorId'], message: 'O coordenador não pode analisar a própria solicitação.' });
-      }
       const selecionados = periodos.filter((p) => dados.periodoIds.includes(p.id));
-      for (const violacao of validarRegrasSolicitacao({
-        quantidadePeriodos: dados.periodoIds.length,
-        totalDias: calcularTotalDias(selecionados),
-        abono: dados.abono,
-      })) {
+      for (const violacao of violacoesDoPedido(solicitacoes, dados.colaboradorId, selecionados, dados.abono, id)) {
         ctx.addIssue({ code: 'custom', path: [violacao.campo], message: violacao.mensagem });
       }
     });
@@ -123,8 +129,8 @@ export function SolicitacaoFormPage() {
   const id = params.id ? Number(params.id) : null;
   const [searchParams] = useSearchParams();
   const usuario = useUsuarioLogado();
-  const admin = ehAdministrador(usuario);
-  // Quem não é administrador só cria solicitações para si mesmo.
+  const admin = ehCoordenador(usuario);
+  // Quem não é coordenador só cria solicitações para si mesmo.
   const colaboradorInicial = admin ? Number(searchParams.get('colaborador')) || null : usuario.colaborador.id;
   const navigate = useNavigate();
   const servicos = useServicos();
@@ -137,11 +143,14 @@ export function SolicitacaoFormPage() {
   const carregando = consultas.some((c) => c.isPending);
 
   const existente: Solicitacao | null = id === null ? null : (solicitacoes.data?.find((s) => s.id === id) ?? null);
-  const esquema = useMemo(() => criarEsquema(periodos.data ?? []), [periodos.data]);
+  const esquema = useMemo(
+    () => criarEsquema(periodos.data ?? [], solicitacoes.data ?? [], id),
+    [periodos.data, solicitacoes.data, id],
+  );
 
   const { control, handleSubmit, reset, setError, setValue, getValues } = useForm<Formulario>({
     resolver: zodResolver(esquema),
-    defaultValues: { colaboradorId: colaboradorInicial, coordenadorId: null, periodoIds: [], abono: false, observacao: '' },
+    defaultValues: { colaboradorId: colaboradorInicial, periodoIds: [], abono: false, observacao: '' },
   });
 
   // Preenche o formulário uma única vez quando a solicitação em edição é carregada.
@@ -151,7 +160,6 @@ export function SolicitacaoFormPage() {
       preenchido.current = true;
       reset({
         colaboradorId: existente.colaborador.id,
-        coordenadorId: existente.coordenador.id,
         periodoIds: existente.periodos.map((p) => p.id),
         abono: existente.abono,
         observacao: existente.observacao ?? '',
@@ -170,13 +178,16 @@ export function SolicitacaoFormPage() {
         );
   const selecionados = (periodos.data ?? []).filter((p) => periodoIds.includes(p.id));
   const totalDias = calcularTotalDias(selecionados);
-  const limitePeriodos = abono ? MAX_PERIODOS_ABONO : MAX_PERIODOS;
   const pessoaCritica = colaboradorId !== null && isPessoaCriticaEmAlgumProjeto(colaboradorId, projetos.data ?? []);
-  const coordenadores = (colaboradores.data ?? []).filter((c) => c.isCoordenador && c.id !== colaboradorId);
-  const violacoesAoVivo = validarRegrasSolicitacao({ quantidadePeriodos: periodoIds.length, totalDias, abono });
+  const violacoesAoVivo = violacoesDoPedido(solicitacoes.data ?? [], colaboradorId, selecionados, abono, id);
+  const saldo = colaboradorId === null ? null : saldoDoAno(solicitacoes.data ?? [], colaboradorId, selecionados, abono, id ?? undefined);
+  const solicitante = (colaboradores.data ?? []).find((c) => c.id === colaboradorId);
+  // O supervisor não é escolhido: a solicitação vai para quem o colaborador responde.
+  const analisadaPor = existente?.supervisor.nome ?? solicitante?.respondeA?.nome;
+  const coordenadorSemSuperior = admin && solicitante?.id === usuario.colaborador.id && !solicitante.respondeA;
 
   const salvar = useMutacao(
-    (input: { colaboradorId: number; coordenadorId: number; periodoIds: number[]; abono: boolean; observacao: string }) =>
+    (input: { colaboradorId: number; periodoIds: number[]; abono: boolean; observacao: string }) =>
       id === null ? servicos.solicitacoes.criar(input) : servicos.solicitacoes.atualizar(id, input),
     {
       sucesso: (s) => (id === null ? `Solicitação #${s.id} criada.` : `Solicitação #${s.id} atualizada e enviada para nova análise.`),
@@ -185,9 +196,9 @@ export function SolicitacaoFormPage() {
   );
 
   const enviar = handleSubmit((dados) => {
-    if (dados.colaboradorId === null || dados.coordenadorId === null) return;
+    if (dados.colaboradorId === null) return;
     salvar.mutate(
-      { ...dados, colaboradorId: dados.colaboradorId, coordenadorId: dados.coordenadorId },
+      { ...dados, colaboradorId: dados.colaboradorId },
       {
         onSuccess: (s) => navigate(`/solicitacoes/${s.id}`),
         onError: (erro) => aplicarErrosDoServico(erro, setError, CAMPOS),
@@ -230,7 +241,7 @@ export function SolicitacaoFormPage() {
                 Esta solicitação já está <StatusChip status={existente.status} /> e não pode mais ser editada.
               </>
             ) : (
-              'Somente o próprio colaborador ou um administrador pode editar esta solicitação.'
+              'Somente o próprio colaborador ou o coordenador pode editar esta solicitação.'
             )}
           </Alert>
         ) : (
@@ -251,34 +262,59 @@ export function SolicitacaoFormPage() {
                             field.onChange(novo);
                             // Períodos pertencem ao colaborador: troca de colaborador limpa a seleção.
                             setValue('periodoIds', []);
-                            if (getValues('coordenadorId') === novo) setValue('coordenadorId', null);
                           }}
                           erro={fieldState.error?.message}
-                          desabilitado={!admin}
-                          ajuda={admin ? undefined : 'Você cria solicitações apenas para você mesmo.'}
+                          desabilitado={!admin || id !== null}
+                          ajuda={
+                            id !== null
+                              ? 'O colaborador de uma solicitação não muda.'
+                              : admin
+                                ? undefined
+                                : 'Você cria solicitações apenas para você mesmo.'
+                          }
                         />
                       )}
                     />
+                    {solicitante && (
+                      <Alert severity={analisadaPor || coordenadorSemSuperior ? 'info' : 'warning'} sx={{ mt: 2 }}>
+                        {coordenadorSemSuperior ? (
+                          'Como coordenador, sua solicitação é registrada já aprovada.'
+                        ) : analisadaPor ? (
+                          <>
+                            Será analisada por <strong>{analisadaPor}</strong>.
+                          </>
+                        ) : (
+                          'Este colaborador não tem "Responde a" cadastrado. Peça ao coordenador para preencher antes de criar a solicitação.'
+                        )}
+                      </Alert>
+                    )}
                   </Etapa>
 
-                  <Etapa numero={2} titulo="Coordenador">
+                  <Etapa numero={2} titulo="Abono">
                     <Controller
                       control={control}
-                      name="coordenadorId"
+                      name="abono"
                       render={({ field, fieldState }) => (
-                        <SeletorColaborador
-                          rotulo="Quem vai analisar"
-                          opcoes={coordenadores}
-                          valor={field.value}
-                          onChange={field.onChange}
-                          erro={fieldState.error?.message}
-                          ajuda="Somente coordenadores, exceto o próprio solicitante."
-                        />
+                        <Box>
+                          <FormControlLabel
+                            control={<Switch checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
+                            label="Solicitação de abono"
+                          />
+                          <FormHelperText error={Boolean(fieldState.error)}>
+                            {fieldState.error?.message ??
+                              `Com abono, a pessoa vende 10 dias e as férias do ano ficam limitadas a ${DIAS_FERIAS_COM_ABONO} dias; sem abono, ${DIAS_FERIAS}.`}
+                          </FormHelperText>
+                        </Box>
                       )}
                     />
                   </Etapa>
 
-                  <Etapa numero={3} titulo={`Períodos (1 a ${limitePeriodos})`}>
+                  <Etapa numero={3} titulo={`Períodos (1 a ${MAX_PERIODOS})`}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                      Cada período tem pelo menos {DURACAO_MINIMA_DIAS} dias. Você pode pedir as férias em partes: no ano, até{' '}
+                      {MAX_PERIODOS} períodos e {DIAS_FERIAS} dias ({DIAS_FERIAS_COM_ABONO} com abono), um deles com pelo menos{' '}
+                      {MIN_DIAS_PERIODO_PRINCIPAL} dias.
+                    </Typography>
                     <Controller
                       control={control}
                       name="periodoIds"
@@ -292,7 +328,7 @@ export function SolicitacaoFormPage() {
                             <List dense disablePadding sx={{ border: 1, borderColor: 'divider', borderRadius: 2 }}>
                               {disponiveis.map((p) => {
                                 const marcado = periodoIds.includes(p.id);
-                                const bloqueado = !marcado && periodoIds.length >= limitePeriodos;
+                                const bloqueado = !marcado && periodoIds.length >= MAX_PERIODOS;
                                 return (
                                   <ListItem key={p.id} disablePadding divider>
                                     <ListItemButton onClick={() => alternarPeriodo(p.id)} disabled={bloqueado} dense>
@@ -321,23 +357,7 @@ export function SolicitacaoFormPage() {
                     />
                   </Etapa>
 
-                  <Etapa numero={4} titulo="Abono e observação">
-                    <Controller
-                      control={control}
-                      name="abono"
-                      render={({ field, fieldState }) => (
-                        <Box sx={{ mb: 2 }}>
-                          <FormControlLabel
-                            control={<Switch checked={field.value} onChange={(e) => field.onChange(e.target.checked)} />}
-                            label="Solicitação de abono"
-                          />
-                          <FormHelperText error={Boolean(fieldState.error)}>
-                            {fieldState.error?.message ??
-                              `Abono permite no máximo ${MAX_PERIODOS_ABONO} períodos e ${MAX_DIAS_ABONO} dias no total.`}
-                          </FormHelperText>
-                        </Box>
-                      )}
-                    />
+                  <Etapa numero={4} titulo="Observação">
                     <Controller
                       control={control}
                       name="observacao"
@@ -365,19 +385,36 @@ export function SolicitacaoFormPage() {
                     <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
                       <Typography color="text.secondary">Períodos</Typography>
                       <Typography sx={{ fontWeight: 600 }}>
-                        {periodoIds.length} de {limitePeriodos}
+                        {periodoIds.length} de {MAX_PERIODOS}
                       </Typography>
                     </Stack>
                     <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-                      <Typography color="text.secondary">Total de dias</Typography>
+                      <Typography color="text.secondary">Dias neste pedido</Typography>
                       <Typography sx={{ fontWeight: 600 }}>{totalDias}</Typography>
                     </Stack>
+                    {saldo && (
+                      <Box sx={{ bgcolor: 'action.hover', borderRadius: 2, p: 1.5 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                          Férias de {saldo.ano}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          Já pedidos: {saldo.diasAnteriores} · Este pedido: {saldo.diasDoPedido} · Restam:{' '}
+                          {Math.max(saldo.restam, 0)} de {saldo.limite}
+                          {saldo.comAbono ? ' (com abono)' : ''}
+                        </Typography>
+                        {saldo.faltaPeriodoPrincipal && saldo.violacoes.length === 0 && (
+                          <Typography variant="body2" color="warning.main" sx={{ mt: 0.5 }}>
+                            Ainda falta um período de {MIN_DIAS_PERIODO_PRINCIPAL} dias neste ano.
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
                       <Typography color="text.secondary">Pessoa crítica</Typography>
                       {pessoaCritica ? <Chip label="Sim" size="small" color="warning" variant="outlined" /> : <Typography>Não</Typography>}
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
-                      Total de dias e pessoa crítica são calculados a partir dos períodos e dos projetos do colaborador.
+                      Os dias, o saldo do ano e a pessoa crítica são calculados a partir dos períodos, das outras solicitações do ano e dos projetos do colaborador.
                     </Typography>
                     {colaboradorId !== null && periodoIds.length > 0 && violacoesAoVivo.length > 0 && (
                       <Alert severity="warning">{violacoesAoVivo.map((v) => v.mensagem).join(' ')}</Alert>
@@ -406,7 +443,7 @@ export function SolicitacaoFormPage() {
         onFechar={() => setCriandoPeriodo(false)}
         onSalvo={(novo) => {
           const atuais = getValues('periodoIds');
-          if (atuais.length < limitePeriodos) setValue('periodoIds', [...atuais, novo.id], { shouldValidate: true });
+          if (atuais.length < MAX_PERIODOS) setValue('periodoIds', [...atuais, novo.id], { shouldValidate: true });
         }}
       />
     </>

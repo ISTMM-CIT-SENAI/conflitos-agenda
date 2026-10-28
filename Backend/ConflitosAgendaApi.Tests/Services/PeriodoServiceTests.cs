@@ -1,82 +1,106 @@
 using ConflitosAgendaApi.Dtos.Periodos;
 using ConflitosAgendaApi.Models;
-using ConflitosAgendaApi.Repositories.Interfaces;
+using ConflitosAgendaApi.Repositories;
 using ConflitosAgendaApi.Services;
 
 namespace ConflitosAgendaApi.Tests.Services;
 
-public class PeriodoServiceTests
+public sealed class PeriodoServiceTests : IDisposable
 {
-    [Fact]
-    public async Task AddAsync_DeveAceitarPeriodoEntreDezETrintaDias()
+    private readonly BancoEmMemoria _banco = new();
+    private readonly PeriodoService _service;
+    private readonly Colaborador _colaborador = new("Henrique", new(), false);
+    private readonly Colaborador _supervisor = new("Bruno", new(), true);
+
+    public PeriodoServiceTests()
     {
-        var repository = new FakePeriodoRepository();
-        var service = new PeriodoService(repository);
+        _service = new PeriodoService(new PeriodoRepository(_banco.Contexto), new SolicitacaoRepository(_banco.Contexto));
+        _banco.Contexto.Colaboradores.AddRange(_colaborador, _supervisor);
+        _banco.Contexto.SaveChanges();
+    }
 
-        var resultado = await service.AddAsync(new PeriodoInsertionDto
-        {
-            DataInicio = new DateTime(2026, 10, 1),
-            DataFim = new DateTime(2026, 10, 11)
-        });
+    public void Dispose() => _banco.Dispose();
 
-        Assert.NotNull(resultado);
-        Assert.Single(repository.Periodos);
+    private PeriodoInsertionDto Novo(DateTime inicio, DateTime retorno) =>
+        new() { DataInicio = inicio, DataFim = retorno, IdColaborador = _colaborador.Id };
+
+    private PeriodoUpdateDto Datas(DateTime inicio, DateTime retorno) =>
+        new() { DataInicio = inicio, DataFim = retorno, IdColaborador = _colaborador.Id };
+
+    private async Task<Periodo> PeriodoEmSolicitacaoAsync(StatusSolicitacao status)
+    {
+        var periodo = (await _service.AddAsync(Novo(new DateTime(2027, 1, 4), new DateTime(2027, 2, 3))))!;
+        _banco.Contexto.Solicitacoes.Add(new Solicitacao(_colaborador, [periodo], status, DateTimeOffset.UtcNow, _supervisor));
+        await _banco.Contexto.SaveChangesAsync();
+        return periodo;
     }
 
     [Fact]
-    public async Task AddAsync_DeveRejeitarPeriodoMenorQueDezDias()
+    public async Task AddAsync_DeveAceitarPeriodoEntreCincoETrintaDias()
     {
-        var service = new PeriodoService(new FakePeriodoRepository());
+        Assert.NotNull(await _service.AddAsync(Novo(new DateTime(2026, 10, 1), new DateTime(2026, 10, 11))));
+    }
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => service.AddAsync(new PeriodoInsertionDto
-            {
-                DataInicio = new DateTime(2026, 10, 1),
-                DataFim = new DateTime(2026, 10, 10)
-            }));
+    [Fact]
+    public async Task AddAsync_DeveRejeitarPeriodoMenorQueCincoDias()
+    {
+        var erro = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAsync(Novo(new DateTime(2026, 10, 1), new DateTime(2026, 10, 5))));
+        Assert.Contains("mínimo 5 dias", erro.Message);
+    }
 
-        Assert.Contains("mínimo 10 dias", exception.Message);
+    [Fact]
+    public async Task AddAsync_DeveRejeitarInicioNaSextaFeira()
+    {
+        var erro = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.AddAsync(Novo(new DateTime(2026, 10, 2), new DateTime(2026, 10, 16))));
+        Assert.Contains("antecedem um domingo ou feriado", erro.Message);
     }
 
     [Fact]
     public async Task UpdateAsync_DeveRetornarNullQuandoPeriodoNaoExiste()
     {
-        var service = new PeriodoService(new FakePeriodoRepository());
-
-        var resultado = await service.UpdateAsync(
-            99,
-            new PeriodoUpdateDto
-            {
-                DataInicio = new DateTime(2026, 10, 1),
-                DataFim = new DateTime(2026, 10, 11)
-            });
-
-        Assert.Null(resultado);
+        Assert.Null(await _service.UpdateAsync(99, Datas(new DateTime(2026, 10, 1), new DateTime(2026, 10, 11))));
     }
 
-    private sealed class FakePeriodoRepository : IPeriodoRepository
+    [Fact]
+    public async Task UpdateAsync_NaoAlteraPeriodoDeSolicitacaoDecidida()
     {
-        public List<Periodo> Periodos { get; } = [];
+        var periodo = await PeriodoEmSolicitacaoAsync(StatusSolicitacao.Aprovada);
 
-        public Task<Periodo?> GetByIdAsync(int id) =>
-            Task.FromResult(Periodos.FirstOrDefault(periodo => periodo.Id == id));
+        var erro = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAsync(periodo.Id, Datas(new DateTime(2027, 5, 3), new DateTime(2027, 6, 2))));
+        Assert.Contains("já foi decidida", erro.Message);
+        Assert.Equal(new DateTime(2027, 1, 4), periodo.DataInicio);
+    }
 
-        public Task<IEnumerable<Periodo>> ListAllAsync() =>
-            Task.FromResult<IEnumerable<Periodo>>(Periodos);
+    [Fact]
+    public async Task UpdateAsync_MantemASolicitacaoEmAbertoDentroDaClt()
+    {
+        var periodo = await PeriodoEmSolicitacaoAsync(StatusSolicitacao.Em_Analise);
+        // Outra parte de 2027, com 10 dias.
+        var outro = (await _service.AddAsync(Novo(new DateTime(2027, 9, 13), new DateTime(2027, 9, 23))))!;
+        _banco.Contexto.Solicitacoes.Add(new Solicitacao(_colaborador, [outro], StatusSolicitacao.Em_Analise, DateTimeOffset.UtcNow, _supervisor));
+        await _banco.Contexto.SaveChangesAsync();
 
-        public Task<Periodo?> AddAsync(Periodo periodo)
-        {
-            Periodos.Add(periodo);
-            return Task.FromResult<Periodo?>(periodo);
-        }
+        // 10 + 25 passaria de 30; 10 + 10 não deixaria espaço para um período de 14 dias.
+        var excesso = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAsync(periodo.Id, Datas(new DateTime(2027, 5, 3), new DateTime(2027, 5, 28))));
+        Assert.Contains("35 dias", excesso.Message);
+        var semEspaco = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAsync(periodo.Id, Datas(new DateTime(2027, 5, 3), new DateTime(2027, 5, 13))));
+        Assert.Contains("14 dias", semEspaco.Message);
 
-        public Task<Periodo?> UpdateAsync(Periodo periodo) =>
-            Task.FromResult<Periodo?>(periodo);
+        await _service.UpdateAsync(periodo.Id, Datas(new DateTime(2027, 5, 3), new DateTime(2027, 5, 23)));
+        Assert.Equal(new DateTime(2027, 5, 3), periodo.DataInicio);
+    }
 
-        public Task<Periodo?> DeleteAsync(int id) =>
-            Task.FromResult<Periodo?>(null);
+    [Fact]
+    public async Task DeleteAsync_NaoExcluiPeriodoQueFazParteDeUmaSolicitacao()
+    {
+        var periodo = await PeriodoEmSolicitacaoAsync(StatusSolicitacao.Em_Analise);
 
-        public Task<IEnumerable<Periodo>> ListByColaboradorIdAsync(int colaboradorId) =>
-            Task.FromResult<IEnumerable<Periodo>>([]);
+        var erro = await Assert.ThrowsAsync<ArgumentException>(() => _service.DeleteAsync(periodo.Id));
+        Assert.Contains("Remova-o da solicitação", erro.Message);
     }
 }

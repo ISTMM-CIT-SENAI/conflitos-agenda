@@ -5,10 +5,10 @@ import {
   podeEditar,
   podeValidarConflito,
 } from '@/domain/enums/statusSolicitacao';
-import { intervaloDoPeriodo, seSobrepoem, validarIntervalo } from '@/domain/validation/periodo';
+import { duracaoDoPeriodo, intervaloDoPeriodo, seSobrepoem, validarIntervalo } from '@/domain/validation/periodo';
 import {
-  calcularTotalDias,
   isPessoaCriticaEmAlgumProjeto,
+  saldoDoAno,
   validarRegrasSolicitacao,
 } from '@/domain/validation/solicitacao';
 import { agoraDateTimeOffset, dateTimeDeDataISO } from '@/lib/datas';
@@ -34,7 +34,7 @@ function colaboradorParaPayload(colaborador: Colaborador): Colaborador {
   return {
     id: colaborador.id,
     nome: colaborador.nome,
-    isCoordenador: colaborador.isCoordenador,
+    isSupervisor: colaborador.isSupervisor,
     projetos: [],
   };
 }
@@ -45,9 +45,7 @@ function dtoDeSolicitacao(solicitacao: Solicitacao): SolicitacaoDto {
     periodos: solicitacao.periodos,
     status: solicitacao.status,
     criadaEm: solicitacao.criadaEm,
-    coordenador: colaboradorParaPayload(solicitacao.coordenador),
     observacao: solicitacao.observacao,
-    totalDias: solicitacao.totalDias,
     abono: solicitacao.abono,
     isPessoaCritica: solicitacao.isPessoaCritica,
   };
@@ -107,18 +105,6 @@ export function criarServicos(
     const colaborador = colaboradores.find((c) => c.id === input.colaboradorId);
     if (!colaborador) violacoes.push({ campo: 'colaboradorId', mensagem: 'Selecione um colaborador.' });
 
-    const coordenador = colaboradores.find((c) => c.id === input.coordenadorId);
-    if (!coordenador) {
-      violacoes.push({ campo: 'coordenadorId', mensagem: 'Selecione um coordenador.' });
-    } else if (!coordenador.isCoordenador) {
-      violacoes.push({ campo: 'coordenadorId', mensagem: `${coordenador.nome} não é coordenador.` });
-    } else if (coordenador.id === input.colaboradorId) {
-      violacoes.push({
-        campo: 'coordenadorId',
-        mensagem: 'O coordenador não pode analisar a própria solicitação.',
-      });
-    }
-
     const selecionados: Periodo[] = [];
     for (const periodoId of input.periodoIds) {
       const periodo = periodos.find((p) => p.id === periodoId);
@@ -143,16 +129,14 @@ export function criarServicos(
       selecionados.push(periodo);
     }
 
-    const totalDias = calcularTotalDias(selecionados);
+    const doPedido = validarRegrasSolicitacao({ duracoes: selecionados.map(duracaoDoPeriodo) });
     violacoes.push(
-      ...validarRegrasSolicitacao({
-        quantidadePeriodos: input.periodoIds.length,
-        totalDias,
-        abono: input.abono,
-      }),
+      ...(doPedido.length > 0
+        ? doPedido
+        : (saldoDoAno(solicitacoes, input.colaboradorId, selecionados, input.abono, base.id)?.violacoes ?? [])),
     );
 
-    if (violacoes.length > 0 || !colaborador || !coordenador) {
+    if (violacoes.length > 0 || !colaborador) {
       throw ErroRegraNegocio.deViolacoes(violacoes);
     }
 
@@ -162,9 +146,7 @@ export function criarServicos(
       periodos: selecionados,
       status: base.status,
       criadaEm: base.criadaEm,
-      coordenador: colaboradorParaPayload(coordenador),
       observacao: observacao === '' ? null : observacao,
-      totalDias,
       abono: input.abono,
       isPessoaCritica: isPessoaCriticaEmAlgumProjeto(colaborador.id, projetos),
     };
@@ -221,7 +203,7 @@ export function criarServicos(
         if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
         return api.usuarios.criar({ ...input, nomeUsuario: input.nomeUsuario.trim() });
       },
-      definirAdministrador: (id, isAdministrador) => api.usuarios.definirAdministrador(id, isAdministrador),
+      definirCoordenador: (id, isCoordenador) => api.usuarios.definirCoordenador(id, isCoordenador),
       async redefinirSenha(id, senhaTemporaria) {
         const erro = validarSenha(senhaTemporaria);
         if (erro) throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaTemporaria', mensagem: erro }]);
@@ -234,16 +216,16 @@ export function criarServicos(
     colaboradores: {
       listar: () => api.colaboradores.listar(),
       buscarPorId: (id) => api.colaboradores.buscar(id),
-      criar: (input) => api.colaboradores.criar({ nome: input.nome.trim() }),
+      criar: (input) => api.colaboradores.criar({ nome: input.nome.trim(), respondeAId: input.respondeAId }),
       async atualizar(id, input) {
         exigir(await api.colaboradores.buscar(id), 'Colaborador não encontrado.');
-        return api.colaboradores.atualizar(id, { nome: input.nome.trim() });
+        return api.colaboradores.atualizar(id, { nome: input.nome.trim(), respondeAId: input.respondeAId });
       },
       async excluir(id) {
         const [periodos, solicitacoes] = await Promise.all([api.periodos.listar(), api.solicitacoes.listar()]);
         const qtdPeriodos = periodos.filter((p) => p.idColaborador === id).length;
         const qtdSolicitacoes = solicitacoes.filter(
-          (s) => s.colaborador.id === id || s.coordenador.id === id,
+          (s) => s.colaborador.id === id || s.supervisor.id === id,
         ).length;
         if (qtdPeriodos > 0 || qtdSolicitacoes > 0) {
           const partes = [
@@ -256,9 +238,9 @@ export function criarServicos(
         }
         await api.colaboradores.excluir(id);
       },
-      async tornarCoordenador(id) {
+      async tornarSupervisor(id) {
         const colaborador = exigir(await api.colaboradores.buscar(id), 'Colaborador não encontrado.');
-        return api.colaboradores.tornarCoordenador(id, { nome: colaborador.nome });
+        return api.colaboradores.tornarSupervisor(id, { nome: colaborador.nome, respondeAId: colaborador.respondeA?.id ?? null });
       },
     },
 
@@ -286,7 +268,8 @@ export function criarServicos(
       },
       async atualizar(id, input) {
         const atual = exigir(await api.periodos.buscar(id), 'Período não encontrado.');
-        const vinculadas = (await api.solicitacoes.listar()).filter((s) => contem(s, id));
+        const todas = await api.solicitacoes.listar();
+        const vinculadas = todas.filter((s) => contem(s, id));
 
         const aprovada = vinculadas.find((s) => s.status === StatusSolicitacao.Aprovada);
         if (aprovada) {
@@ -304,6 +287,18 @@ export function criarServicos(
         }
         await validarPeriodo(input, id);
 
+        // As novas datas precisam manter as solicitações em aberto dentro das regras do ano.
+        const novasDatas = { dataInicio: dateTimeDeDataISO(input.dataInicio), dataFim: dateTimeDeDataISO(input.dataFim) };
+        for (const solicitacao of vinculadas.filter((s) => podeEditar(s.status))) {
+          const periodos = solicitacao.periodos.map((p) => (p.id === id ? { ...p, ...novasDatas } : p));
+          const violacoes = saldoDoAno(todas, solicitacao.colaborador.id, periodos, solicitacao.abono, solicitacao.id)?.violacoes ?? [];
+          if (violacoes.length > 0) {
+            throw ErroRegraNegocio.deViolacoes([
+              { campo: 'dataFim', mensagem: `A solicitação #${solicitacao.id} ficaria fora das regras: ${violacoes[0].mensagem}` },
+            ]);
+          }
+        }
+
         const atualizado = await api.periodos.atualizar(id, {
           dataInicio: dateTimeDeDataISO(input.dataInicio),
           dataFim: dateTimeDeDataISO(input.dataFim),
@@ -316,7 +311,6 @@ export function criarServicos(
           await api.solicitacoes.atualizar(solicitacao.id, {
             ...dtoDeSolicitacao(solicitacao),
             periodos,
-            totalDias: calcularTotalDias(periodos),
             status: StatusSolicitacao.EmAnalise,
           });
         }
@@ -347,6 +341,9 @@ export function criarServicos(
         const atual = await buscarSolicitacaoExistente(id);
         if (!podeEditar(atual.status)) {
           throw new ErroRegraNegocio('Solicitações aprovadas ou recusadas não podem ser editadas.');
+        }
+        if (input.colaboradorId !== atual.colaborador.id) {
+          throw ErroRegraNegocio.deViolacoes([{ campo: 'colaboradorId', mensagem: 'O colaborador da solicitação não pode ser trocado.' }]);
         }
         const dto = await montarSolicitacaoDto(input, {
           id,

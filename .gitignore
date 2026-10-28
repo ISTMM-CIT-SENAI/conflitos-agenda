@@ -4,7 +4,8 @@ dist/
 **/bin/
 **/obj/
 
-# Banco SQLite local
+# Banco SQLite local e senhas temporárias da carga inicial
+credenciais-iniciais.csv
 *.db
 *.db-shm
 *.db-wal
@@ -15,3 +16,6 @@ dist/
 .idea/
 .DS_Store
 .playwright-cli/
+
+#planilhas de dados
+planilhas

@@ -9,13 +9,14 @@ import type { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 
 export interface ColaboradorDto {
   nome: string;
+  respondeAId: number | null;
 }
 
 export interface UsuarioDto {
   colaboradorId: number;
   nomeUsuario: string;
   senhaTemporaria: string;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
 }
 
 export interface PeriodoDto {
@@ -35,9 +36,7 @@ export interface SolicitacaoDto {
   periodos: Periodo[];
   status: StatusSolicitacao;
   criadaEm: string;
-  coordenador: Colaborador;
   observacao: string | null;
-  totalDias: number;
   abono: boolean;
   isPessoaCritica: boolean;
 }
@@ -62,18 +61,18 @@ export interface ApiGateway {
     sair(): Promise<void>;
     trocarSenha(senhaAtual: string, novaSenha: string): Promise<UsuarioLogado>;
   };
-  /** Contas de acesso; exclusivo do Administrador. */
+  /** Contas de acesso; exclusivo do Coordenador. */
   usuarios: {
     listar(): Promise<ContaUsuario[]>;
     criar(dto: UsuarioDto): Promise<ContaUsuario>;
-    definirAdministrador(id: number, isAdministrador: boolean): Promise<ContaUsuario>;
+    definirCoordenador(id: number, isCoordenador: boolean): Promise<ContaUsuario>;
     redefinirSenha(id: number, senhaTemporaria: string): Promise<ContaUsuario>;
     desativar(id: number): Promise<ContaUsuario>;
     reativar(id: number): Promise<ContaUsuario>;
   };
   colaboradores: RecursoApi<Colaborador, ColaboradorDto> & {
-    /** PUT /api/Colaborador/{id}/coordinator — a API exige o nome no corpo. */
-    tornarCoordenador(id: number, dto: ColaboradorDto): Promise<Colaborador>;
+    /** PUT /api/Colaborador/{id}/supervisor — a API exige o nome no corpo. */
+    tornarSupervisor(id: number, dto: ColaboradorDto): Promise<Colaborador>;
   };
   periodos: RecursoApi<Periodo, PeriodoDto>;
   projetos: RecursoApi<Projeto, ProjetoDto>;

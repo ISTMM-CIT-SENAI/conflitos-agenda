@@ -11,17 +11,20 @@ public class SolicitacaoService : ISolicitacaoService
     private readonly IConflitoSolicitacaoService _conflitoSolicitacaoService;
     private readonly IColaboradorRepository _colaboradorRepository;
     private readonly IPeriodoRepository _periodoRepository;
+    private readonly IUsuarioRepository _usuarioRepository;
 
     public SolicitacaoService(
         ISolicitacaoRepository solicitacaoRepository,
         IConflitoSolicitacaoService conflitoSolicitacaoService,
         IColaboradorRepository colaboradorRepository,
-        IPeriodoRepository periodoRepository)
+        IPeriodoRepository periodoRepository,
+        IUsuarioRepository usuarioRepository)
     {
         _solicitacaoRepository = solicitacaoRepository;
         _conflitoSolicitacaoService = conflitoSolicitacaoService;
         _colaboradorRepository = colaboradorRepository;
         _periodoRepository = periodoRepository;
+        _usuarioRepository = usuarioRepository;
     }
 
     public async Task<List<SolicitacaoResponseDto>> GetAllAsync()
@@ -63,35 +66,49 @@ public class SolicitacaoService : ISolicitacaoService
         return solicitacoesDto;
     }
 
+    /// <summary>
+    /// Cria a Solicitação e a encaminha a quem o colaborador responde. A do Coordenador,
+    /// que não responde a ninguém no sistema, já nasce aprovada (aprovação feita fora dele).
+    /// </summary>
     public async Task<Solicitacao> AddAsync(SolicitacaoInsertionDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
-        if (dto.Periodos is null)
-        {
-            throw new ArgumentException(
-                "A solicitação deve conter pelo menos um período.");
-        }
+        var colaborador = await _colaboradorRepository.ObterColaboradorAsync(dto.Colaborador);
+        var periodos = await _periodoRepository.ObterPeriodosAsync(dto.Periodos ?? new());
+        await ValidarFeriasAsync(colaborador, periodos, dto.Abono, ignorarSolicitacaoId: null);
+
+        var usuario = await _usuarioRepository.GetByColaboradorIdAsync(colaborador.Id);
+        var ehCoordenadorSemSuperior = colaborador.RespondeAId is null && usuario is { IsCoordenador: true };
+        var supervisor = ehCoordenadorSemSuperior
+            ? colaborador
+            : await _colaboradorRepository.GetByIdAsync(colaborador.RespondeAId ?? 0)
+                ?? throw new ArgumentException(
+                    $"{colaborador.Nome} não tem a quem responder cadastrado. Peça ao coordenador para preencher \"Responde a\".");
 
         var solicitacao = new Solicitacao(
-            await _colaboradorRepository.ObterColaboradorAsync(dto.Colaborador),
-            await _periodoRepository.ObterPeriodosAsync(dto.Periodos),
-            dto.Status,
+            colaborador,
+            periodos,
+            StatusSolicitacao.Em_Analise,
             dto.CriadaEm,
-            await _colaboradorRepository.ObterColaboradorAsync(dto.Coordenador, "Coordenador"),
+            supervisor,
             dto.Observacao,
             dto.Abono,
             dto.isPessoaCritica,
-            dto.TotalDias);
+            periodos.Sum(p => RegrasFerias.Dias(p.DataInicio, p.DataFim)));
 
-        ValidarRegras(solicitacao);
-        ValidarCoordenador(solicitacao);
+        if (ehCoordenadorSemSuperior)
+        {
+            solicitacao.Aprovar();
+            solicitacao.RegistrarDecisao(usuario!, DateTimeOffset.UtcNow);
+        }
 
         await _solicitacaoRepository.AddAsync(solicitacao);
 
         return solicitacao;
     }
 
+    /// <summary>Edita ou muda o status. O supervisor encaminhado não muda.</summary>
     public async Task<Solicitacao?> UpdateAsync(
         int id,
         SolicitacaoUpdateDto dto,
@@ -106,39 +123,30 @@ public class SolicitacaoService : ISolicitacaoService
             return null;
         }
 
-        if (dto.Periodos is null)
-        {
-            throw new ArgumentException(
-                "A solicitação deve conter pelo menos um período.");
-        }
-
         if (solicitacao.EstaDecidida)
         {
             throw new ArgumentException(
                 "Solicitações aprovadas ou recusadas não podem ser alteradas.");
         }
 
-        var periodos = await _periodoRepository.ObterPeriodosAsync(dto.Periodos);
-
-        // Quantidade é validada antes de alterar a entidade; abono depende dos novos valores.
-        if (!solicitacao.ValidarNumPeriodos(periodos))
+        // Trocar o colaborador deixaria a solicitação com o supervisor de outra pessoa.
+        if (dto.Colaborador?.Id != solicitacao.Colaborador.Id)
         {
-            throw new ArgumentException(
-                "A solicitação deve conter entre 1 e 3 períodos.");
+            throw new ArgumentException("O colaborador da solicitação não pode ser trocado.");
         }
 
+        var colaborador = solicitacao.Colaborador;
+        var periodos = await _periodoRepository.ObterPeriodosAsync(dto.Periodos ?? new());
+        var abono = dto.Abono ?? solicitacao.Abono;
+        await ValidarFeriasAsync(colaborador, periodos, abono, ignorarSolicitacaoId: id);
+
         solicitacao.Atualizar(
-            await _colaboradorRepository.ObterColaboradorAsync(dto.Colaborador),
             periodos,
-            await _colaboradorRepository.ObterColaboradorAsync(dto.Coordenador, "Coordenador"),
             dto.Status,
             dto.Observacao,
-            dto.TotalDias,
-            dto.Abono,
+            periodos.Sum(p => RegrasFerias.Dias(p.DataInicio, p.DataFim)),
+            abono,
             dto.isPessoaCritica);
-
-        ValidarRegras(solicitacao);
-        ValidarCoordenador(solicitacao);
 
         // Aprovar ou recusar registra a Decisão: quem decidiu e quando.
         if (solicitacao.EstaDecidida && decisor is not null)
@@ -179,35 +187,24 @@ public class SolicitacaoService : ISolicitacaoService
 
     }
 
-    /// <summary>O Coordenador escolhido precisa ser coordenador e não pode ser o próprio solicitante.</summary>
-    private static void ValidarCoordenador(Solicitacao solicitacao)
+    /// <summary>Regras da CLT para o pedido e para o saldo do ano (ver <see cref="RegrasFerias.ValidarFeriasDoAno"/>).</summary>
+    private async Task ValidarFeriasAsync(
+        Colaborador colaborador,
+        List<Periodo> periodos,
+        bool abono,
+        int? ignorarSolicitacaoId)
     {
-        if (!solicitacao.Coordenador.IsCoordenador)
+        // Sem isto, o período de outra pessoa sairia da solicitação dela e viria para esta.
+        if (periodos.Any(p => p.IdColaborador != colaborador.Id))
         {
-            throw new ArgumentException(
-                $"{solicitacao.Coordenador.Nome} não é coordenador.");
-        }
-        if (solicitacao.Coordenador.Id == solicitacao.Colaborador.Id)
-        {
-            throw new ArgumentException(
-                "O coordenador não pode analisar a própria solicitação.");
-        }
-    }
-
-    private static void ValidarRegras(
-        Solicitacao solicitacao,
-        IEnumerable<Periodo>? periodos = null)
-    {
-        if (!solicitacao.ValidarNumPeriodos(periodos))
-        {
-            throw new ArgumentException(
-                "A solicitação deve conter entre 1 e 3 períodos.");
+            throw new ArgumentException("Todos os períodos devem pertencer ao colaborador da solicitação.");
         }
 
-        if (!solicitacao.ValidarAbono(periodos))
-        {
-            throw new ArgumentException(
-                "A solicitação não atende aos critérios de abono.");
-        }
+        RegrasFerias.ValidarFeriasDoAno(
+            colaborador.Nome,
+            await _solicitacaoRepository.GetByColaboradorIdAsync(colaborador.Id),
+            periodos,
+            abono,
+            ignorarSolicitacaoId);
     }
 }

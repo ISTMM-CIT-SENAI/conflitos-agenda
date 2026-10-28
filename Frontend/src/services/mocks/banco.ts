@@ -9,7 +9,8 @@ import type { StatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 export interface ColaboradorRegistro {
   id: number;
   nome: string;
-  isCoordenador: boolean;
+  isSupervisor: boolean;
+  respondeAId: number | null;
 }
 
 export interface UsuarioRegistro {
@@ -18,7 +19,7 @@ export interface UsuarioRegistro {
   /** Hash da senha (ver `hashSenhaDemonstracao`); a senha nunca é guardada. */
   senhaHash: string;
   colaboradorId: number;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
   ativo: boolean;
   precisaTrocarSenha: boolean;
   tentativasFalhas: number;
@@ -36,7 +37,7 @@ export interface ProjetoRegistro {
 export interface SolicitacaoRegistro {
   id: number;
   colaboradorId: number;
-  coordenadorId: number;
+  supervisorId: number;
   periodoIds: number[];
   status: StatusSolicitacao;
   criadaEm: string;
@@ -57,8 +58,8 @@ export interface BancoMock {
   solicitacoes: SolicitacaoRegistro[];
 }
 
-/** Versão 2: login, níveis de acesso, Decisão e Colaborador sem e-mail. */
-export const VERSAO_BANCO = 2;
+/** Versão 3: Coordenador/Supervisor, "Responde a" e regras da CLT. */
+export const VERSAO_BANCO = 3;
 
 /** Subconjunto de `Storage`, para permitir armazenamento em memória nos testes. */
 export interface Armazenamento {

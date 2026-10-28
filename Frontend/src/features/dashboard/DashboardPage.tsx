@@ -25,7 +25,7 @@ import { Link as RouterLink } from 'react-router-dom';
 import { PageHeader } from '@/components/common/PageHeader';
 import { LinkColaborador } from '@/components/common/LinkColaborador';
 import { useUsuarioLogado } from '@/app/providers/useSessao';
-import { ehAdministrador } from '@/domain/acesso';
+import { ehCoordenador } from '@/domain/acesso';
 import { StatusChip } from '@/components/common/StatusChip';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
 import { solicitacaoDoPeriodo } from '@/domain/consultas';
@@ -97,14 +97,14 @@ export function DashboardPage() {
   const solicitacoes = useSolicitacoes();
   const consultas = [colaboradores, projetos, periodos, solicitacoes];
   const usuario = useUsuarioLogado();
-  const admin = ehAdministrador(usuario);
+  const admin = ehCoordenador(usuario);
   const meuId = usuario.colaborador.id;
 
   const lista = solicitacoes.data ?? [];
   const contar = (status: StatusSolicitacao) => lista.filter((s) => s.status === status).length;
 
   const indicadores: Indicador[] = [
-    // Cadastros são exclusivos do Administrador; os demais veem só os indicadores das suas solicitações.
+    // Cadastros são exclusivos do Coordenador; os demais veem só os indicadores das suas solicitações.
     ...(admin
       ? [
           { rotulo: 'Colaboradores', valor: colaboradores.data?.length ?? 0, icone: <PeopleAltOutlinedIcon />, cor: '#1d4f91', destino: '/colaboradores' },
@@ -127,11 +127,11 @@ export function DashboardPage() {
     .sort((a, b) => a.intervalo.inicio.localeCompare(b.intervalo.inicio))
     .slice(0, 6);
 
-  // Administrador: todas as pendentes. Coordenador: as atribuídas a ele. Colaborador: as próprias.
+  // Coordenador: todas as pendentes. Supervisor: as atribuídas a ele. Colaborador: as próprias.
   const aguardando = lista
     .filter((s) => !isStatusFinal(s.status))
     .filter((s) =>
-      admin ? true : usuario.colaborador.isCoordenador ? s.coordenador.id === meuId && s.colaborador.id !== meuId : s.colaborador.id === meuId,
+      admin ? true : usuario.colaborador.isSupervisor ? s.supervisor.id === meuId && s.colaborador.id !== meuId : s.colaborador.id === meuId,
     )
     .sort((a, b) => a.criadaEm.localeCompare(b.criadaEm))
     .slice(0, 6);
@@ -204,7 +204,7 @@ export function DashboardPage() {
 
           <Grid size={{ xs: 12, lg: 5 }}>
             <Painel
-              titulo={admin ? 'Aguardando decisão' : usuario.colaborador.isCoordenador ? 'Aguardando sua decisão' : 'Minhas solicitações em análise'}
+              titulo={admin ? 'Aguardando decisão' : usuario.colaborador.isSupervisor ? 'Aguardando sua decisão' : 'Minhas solicitações em análise'}
               acao={
                 <Button size="small" component={RouterLink} to="/solicitacoes">
                   Ver todas

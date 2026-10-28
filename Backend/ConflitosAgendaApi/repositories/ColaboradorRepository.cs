@@ -16,12 +16,14 @@ using ConflitosAgendaApi.Dtos.Colaboradores;
 
     public async Task<Colaborador?> GetByIdAsync(int id)
     {
-        return await _context.Colaboradores.FindAsync(id);
+        return await _context.Colaboradores
+            .Include(c => c.RespondeA)
+            .FirstOrDefaultAsync(c => c.Id == id);
     }
 
     public async Task<IEnumerable<Colaborador>> ListAllAsync()
     {
-        return await _context.Colaboradores.ToListAsync();
+        return await _context.Colaboradores.Include(c => c.RespondeA).ToListAsync();
     }
     
     public async Task<Colaborador?> AddAsync(Colaborador colaborador)
@@ -71,18 +73,6 @@ using ConflitosAgendaApi.Dtos.Colaboradores;
         return existingColaborador;
     }
 
-    public async Task<Colaborador?> TornarCoordenadorAsync(int id)
-    {
-        var colaborador = await _context.Colaboradores.FindAsync(id);
-        if (colaborador == null)
-        {
-            return null;
-        }
-
-        colaborador.TornarCoordenador();
-        await _context.SaveChangesAsync();
-        return colaborador;
-    }
     public Task<bool> ExisteComNomeAsync(string nome, int? ignorarId = null)
     {
         // A coluna usa a collation NOCASE, então a comparação ignora maiúsculas.

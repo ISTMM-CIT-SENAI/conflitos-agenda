@@ -1,5 +1,5 @@
 import {
-  ehAdministrador,
+  ehCoordenador,
   podeDecidir,
   podeExcluirSolicitacao,
   podeGerenciarPeriodo,
@@ -11,8 +11,12 @@ import {
 import type { Colaborador, ContaUsuario, Periodo, Projeto, Solicitacao, UsuarioLogado } from '@/domain/entities';
 import { StatusSolicitacao, isStatusFinal, isStatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 import { detectarConflitos, mensagemDeConflito } from '@/domain/validation/conflito';
-import { intervaloDoPeriodo, validarIntervalo } from '@/domain/validation/periodo';
-import { validarRegrasSolicitacao } from '@/domain/validation/solicitacao';
+import { duracaoDoPeriodo, intervaloDoPeriodo, validarIntervalo } from '@/domain/validation/periodo';
+import {
+  calcularTotalDias,
+  saldoDoAno,
+  validarRegrasSolicitacao,
+} from '@/domain/validation/solicitacao';
 import type { ApiGateway, ColaboradorDto, PeriodoDto, SolicitacaoDto } from '../contracts/api';
 import {
   ErroAcessoNegado,
@@ -140,12 +144,12 @@ export function criarGatewayMock({
     return {
       id: usuario.id,
       nomeUsuario: usuario.nomeUsuario,
-      nivel: usuario.isAdministrador ? 'administrador' : colaborador?.isCoordenador ? 'coordenador' : 'colaborador',
+      nivel: usuario.isCoordenador ? 'coordenador' : colaborador?.isSupervisor ? 'supervisor' : 'colaborador',
       precisaTrocarSenha: usuario.precisaTrocarSenha,
       colaborador: {
         id: usuario.colaboradorId,
         nome: colaborador?.nome ?? `Colaborador #${usuario.colaboradorId}`,
-        isCoordenador: colaborador?.isCoordenador ?? false,
+        isSupervisor: colaborador?.isSupervisor ?? false,
       },
     };
   }
@@ -156,7 +160,7 @@ export function criarGatewayMock({
       id: usuario.id,
       nomeUsuario: usuario.nomeUsuario,
       nivel: logado.nivel,
-      isAdministrador: usuario.isAdministrador,
+      isCoordenador: usuario.isCoordenador,
       ativo: usuario.ativo,
       precisaTrocarSenha: usuario.precisaTrocarSenha,
       bloqueado: estaBloqueado(usuario),
@@ -187,8 +191,8 @@ export function criarGatewayMock({
   const mutar = <T>(operacao: (banco: BancoMock, usuario: UsuarioLogado) => T) =>
     operar(operacao, { gravarAoFinal: true });
 
-  function exigirAdministrador(usuario: UsuarioLogado): void {
-    if (!ehAdministrador(usuario)) throw new ErroAcessoNegado();
+  function exigirCoordenador(usuario: UsuarioLogado): void {
+    if (!ehCoordenador(usuario)) throw new ErroAcessoNegado();
   }
 
   function encontrar<T extends { id: number }>(lista: T[], id: number, mensagem: string): T {
@@ -201,7 +205,14 @@ export function criarGatewayMock({
 
   function colaborador(banco: BancoMock, id: number): Colaborador {
     const registro = banco.colaboradores.find((c) => c.id === id);
-    return registro ? { ...registro } : { id, nome: `Colaborador #${id} (excluído)`, isCoordenador: false };
+    if (!registro) return { id, nome: `Colaborador #${id} (excluído)`, isSupervisor: false, respondeA: null };
+    const chefe = banco.colaboradores.find((c) => c.id === registro.respondeAId);
+    return {
+      id: registro.id,
+      nome: registro.nome,
+      isSupervisor: registro.isSupervisor,
+      respondeA: chefe ? { id: chefe.id, nome: chefe.nome } : null,
+    };
   }
 
   function projeto(banco: BancoMock, registro: ProjetoRegistro): Projeto {
@@ -218,7 +229,7 @@ export function criarGatewayMock({
     return {
       id: registro.id,
       colaborador: colaborador(banco, registro.colaboradorId),
-      coordenador: colaborador(banco, registro.coordenadorId),
+      supervisor: colaborador(banco, registro.supervisorId),
       periodos: registro.periodoIds
         .map((id) => banco.periodos.find((p) => p.id === id))
         .filter((p): p is Periodo => p !== undefined),
@@ -233,16 +244,16 @@ export function criarGatewayMock({
             usuarioId: decisor.id,
             nomeUsuario: decisor.nomeUsuario,
             nomeColaborador: colaborador(banco, decisor.colaboradorId).nome,
-            isAdministrador: decisor.isAdministrador,
+            isCoordenador: decisor.isCoordenador,
           }
         : null,
       decididaEm: registro.decididaEm,
     };
   }
 
-  /** Para quem não é Administrador: os próprios períodos e as ausências planejadas dos colegas de projeto. */
+  /** Para quem não é Coordenador: os próprios períodos e as ausências planejadas dos colegas de projeto. */
   function periodosVisiveis(banco: BancoMock, usuario: UsuarioLogado): Periodo[] {
-    if (ehAdministrador(usuario)) return banco.periodos;
+    if (ehCoordenador(usuario)) return banco.periodos;
     const colegas = new Set(
       banco.projetos
         .filter((p) => p.colaboradorIds.includes(usuario.colaborador.id))
@@ -259,7 +270,7 @@ export function criarGatewayMock({
   const resumo = (r: SolicitacaoRegistro) => ({
     status: r.status,
     colaborador: { id: r.colaboradorId },
-    coordenador: { id: r.coordenadorId },
+    supervisor: { id: r.supervisorId },
   });
 
   // --- Validações equivalentes às da API ---
@@ -280,31 +291,44 @@ export function criarGatewayMock({
     if (erros.length > 0) throw ErroRegraNegocio.deViolacoes(erros.map((mensagem) => ({ campo: 'dataFim', mensagem })));
   }
 
-  function validarSolicitacaoDto(banco: BancoMock, dto: SolicitacaoDto): void {
-    const violacoes = validarRegrasSolicitacao({ quantidadePeriodos: dto.periodos.length, totalDias: dto.totalDias, abono: dto.abono });
+  /** Regras da CLT para o pedido e para o saldo do ano, como `RegrasFerias.ValidarFeriasDoAno` na API. */
+  function validarSolicitacaoDto(banco: BancoMock, dto: SolicitacaoDto, ignorarId?: number): void {
+    const violacoes = validarRegrasSolicitacao({ duracoes: dto.periodos.map(duracaoDoPeriodo) });
     if (violacoes.length > 0) throw ErroRegraNegocio.deViolacoes(violacoes);
     if (!isStatusSolicitacao(dto.status)) throw new ErroRegraNegocio('Status inválido.');
-    const coordenador = banco.colaboradores.find((c) => c.id === dto.coordenador.id);
-    if (!coordenador?.isCoordenador) throw new ErroRegraNegocio(`${coordenador?.nome ?? 'O colaborador'} não é coordenador.`);
-    if (dto.coordenador.id === dto.colaborador.id) throw new ErroRegraNegocio('O coordenador não pode analisar a própria solicitação.');
+    const todas = banco.solicitacoes.map((s) => solicitacao(banco, s));
+    const doAno = saldoDoAno(todas, dto.colaborador.id, dto.periodos, dto.abono, ignorarId)?.violacoes ?? [];
+    if (doAno.length > 0) throw ErroRegraNegocio.deViolacoes(doAno);
   }
 
+  /** O supervisor encaminhado não vem do DTO: é quem o colaborador responde, e não muda depois. */
   function camposDoDto(dto: SolicitacaoDto) {
     return {
       colaboradorId: dto.colaborador.id,
-      coordenadorId: dto.coordenador.id,
       periodoIds: dto.periodos.map((p) => p.id),
       status: dto.status,
       criadaEm: dto.criadaEm,
       observacao: dto.observacao,
-      totalDias: dto.totalDias,
+      totalDias: calcularTotalDias(dto.periodos),
       abono: dto.abono,
       isPessoaCritica: dto.isPessoaCritica,
     };
   }
 
-  function contarAdministradoresAtivos(banco: BancoMock): number {
-    return banco.usuarios.filter((u) => u.isAdministrador && u.ativo).length;
+  function validarRespondeA(banco: BancoMock, respondeAId: number | null, proprioId?: number): number | null {
+    if (respondeAId === null) return null;
+    if (respondeAId === proprioId) {
+      throw ErroRegraNegocio.deViolacoes([{ campo: 'respondeAId', mensagem: 'O colaborador não pode responder a si mesmo.' }]);
+    }
+    const chefe = encontrar(banco.colaboradores, respondeAId, 'Colaborador não encontrado.');
+    if (!chefe.isSupervisor) {
+      throw ErroRegraNegocio.deViolacoes([{ campo: 'respondeAId', mensagem: `${chefe.nome} não é supervisor.` }]);
+    }
+    return chefe.id;
+  }
+
+  function contarCoordenadoresAtivos(banco: BancoMock): number {
+    return banco.usuarios.filter((u) => u.isCoordenador && u.ativo).length;
   }
 
   return {
@@ -375,12 +399,12 @@ export function criarGatewayMock({
     usuarios: {
       listar: () =>
         operar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           return b.usuarios.map((u) => contaUsuario(b, u));
         }),
       criar: (dto) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const erroNome = validarNomeUsuario(dto.nomeUsuario);
           if (erroNome) throw ErroRegraNegocio.deViolacoes([{ campo: 'nomeUsuario', mensagem: erroNome }]);
           const erroSenha = validarSenha(dto.senhaTemporaria);
@@ -399,7 +423,7 @@ export function criarGatewayMock({
             nomeUsuario: dto.nomeUsuario.trim(),
             senhaHash: hashSenhaDemonstracao(dto.senhaTemporaria),
             colaboradorId: dono.id,
-            isAdministrador: dto.isAdministrador,
+            isCoordenador: dto.isCoordenador,
             ativo: true,
             precisaTrocarSenha: true,
             tentativasFalhas: 0,
@@ -408,22 +432,22 @@ export function criarGatewayMock({
           b.usuarios.push(novo);
           return contaUsuario(b, novo);
         }),
-      definirAdministrador: (id, isAdministrador) =>
+      definirCoordenador: (id, isCoordenador) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
-          if (!isAdministrador && registro.isAdministrador) {
-            if (registro.id === eu.id) throw new ErroRegraNegocio('Você não pode remover seu próprio acesso de administrador.');
-            if (registro.ativo && contarAdministradoresAtivos(b) <= 1) {
-              throw new ErroRegraNegocio('O sistema precisa de pelo menos um administrador ativo.');
+          if (!isCoordenador && registro.isCoordenador) {
+            if (registro.id === eu.id) throw new ErroRegraNegocio('Você não pode remover seu próprio acesso de coordenador.');
+            if (registro.ativo && contarCoordenadoresAtivos(b) <= 1) {
+              throw new ErroRegraNegocio('O sistema precisa de pelo menos um coordenador ativo.');
             }
           }
-          registro.isAdministrador = isAdministrador;
+          registro.isCoordenador = isCoordenador;
           return contaUsuario(b, registro);
         }),
       redefinirSenha: (id, senhaTemporaria) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const erroSenha = validarSenha(senhaTemporaria);
           if (erroSenha) throw ErroRegraNegocio.deViolacoes([{ campo: 'senhaTemporaria', mensagem: erroSenha }]);
           const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
@@ -435,18 +459,18 @@ export function criarGatewayMock({
         }),
       desativar: (id) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
           if (registro.id === eu.id) throw new ErroRegraNegocio('Você não pode desativar o seu próprio acesso.');
-          if (registro.isAdministrador && registro.ativo && contarAdministradoresAtivos(b) <= 1) {
-            throw new ErroRegraNegocio('O sistema precisa de pelo menos um administrador ativo.');
+          if (registro.isCoordenador && registro.ativo && contarCoordenadoresAtivos(b) <= 1) {
+            throw new ErroRegraNegocio('O sistema precisa de pelo menos um coordenador ativo.');
           }
           registro.ativo = false;
           return contaUsuario(b, registro);
         }),
       reativar: (id) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.usuarios, id, 'Usuário não encontrado.');
           registro.ativo = true;
           return contaUsuario(b, registro);
@@ -458,21 +482,27 @@ export function criarGatewayMock({
       buscar: (id) => operar((b) => (b.colaboradores.some((c) => c.id === id) ? colaborador(b, id) : null)),
       criar: (dto) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
-          const novo: ColaboradorRegistro = { id: proximoId(b.colaboradores), nome: validarNomeColaborador(b, dto), isCoordenador: false };
+          exigirCoordenador(eu);
+          const novo: ColaboradorRegistro = {
+            id: proximoId(b.colaboradores),
+            nome: validarNomeColaborador(b, dto),
+            isSupervisor: false,
+            respondeAId: validarRespondeA(b, dto.respondeAId),
+          };
           b.colaboradores.push(novo);
           return colaborador(b, novo.id);
         }),
       atualizar: (id, dto) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.colaboradores, id, 'Colaborador não encontrado.');
           registro.nome = validarNomeColaborador(b, dto, id);
+          registro.respondeAId = validarRespondeA(b, dto.respondeAId, id);
           return colaborador(b, id);
         }),
       excluir: (id) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.colaboradores, id, 'Colaborador não encontrado.');
           const conta = b.usuarios.find((u) => u.colaboradorId === id);
           if (conta?.ativo) {
@@ -490,10 +520,10 @@ export function criarGatewayMock({
             p.pessoaCriticaIds = p.pessoaCriticaIds.filter((x) => x !== id);
           }
         }),
-      tornarCoordenador: (id) =>
+      tornarSupervisor: (id) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
-          encontrar(b.colaboradores, id, 'Colaborador não encontrado.').isCoordenador = true;
+          exigirCoordenador(eu);
+          encontrar(b.colaboradores, id, 'Colaborador não encontrado.').isSupervisor = true;
           return colaborador(b, id);
         }),
     },
@@ -536,7 +566,7 @@ export function criarGatewayMock({
         }),
       criar: (dto) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           if (dto.nome.trim() === '') throw ErroRegraNegocio.deViolacoes([{ campo: 'nome', mensagem: 'O nome é obrigatório.' }]);
           const novo: ProjetoRegistro = {
             id: proximoId(b.projetos),
@@ -549,7 +579,7 @@ export function criarGatewayMock({
         }),
       atualizar: (id, dto) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           const registro = encontrar(b.projetos, id, 'Projeto não encontrado.');
           if (dto.nome.trim() === '') throw ErroRegraNegocio.deViolacoes([{ campo: 'nome', mensagem: 'O nome é obrigatório.' }]);
           registro.nome = dto.nome;
@@ -559,7 +589,7 @@ export function criarGatewayMock({
         }),
       excluir: (id) =>
         mutar((b, eu) => {
-          exigirAdministrador(eu);
+          exigirCoordenador(eu);
           encontrar(b.projetos, id, 'Projeto não encontrado.');
           b.projetos = b.projetos.filter((p) => p.id !== id);
         }),
@@ -575,11 +605,25 @@ export function criarGatewayMock({
         }),
       criar: (dto) =>
         mutar((b, eu) => {
-          if (!ehAdministrador(eu) && dto.colaborador.id !== eu.colaborador.id) {
+          if (!ehCoordenador(eu) && dto.colaborador.id !== eu.colaborador.id) {
             throw new ErroAcessoNegado('Você só pode criar solicitações para você mesmo.');
           }
           validarSolicitacaoDto(b, dto);
-          const novo: SolicitacaoRegistro = { id: proximoId(b.solicitacoes), ...camposDoDto(dto), decididaPorId: null, decididaEm: null };
+          const dono = encontrar(b.colaboradores, dto.colaborador.id, 'Colaborador não encontrado.');
+          const contaDoDono = b.usuarios.find((u) => u.colaboradorId === dono.id);
+          // O Coordenador não responde a ninguém no sistema: a dele já nasce aprovada (aprovação feita fora dele).
+          const coordenadorSemSuperior = dono.respondeAId === null && contaDoDono?.isCoordenador === true;
+          if (dono.respondeAId === null && !coordenadorSemSuperior) {
+            throw new ErroRegraNegocio(`${dono.nome} não tem a quem responder cadastrado. Peça ao coordenador para preencher "Responde a".`);
+          }
+          const novo: SolicitacaoRegistro = {
+            id: proximoId(b.solicitacoes),
+            ...camposDoDto(dto),
+            supervisorId: dono.respondeAId ?? dono.id,
+            status: coordenadorSemSuperior ? StatusSolicitacao.Aprovada : StatusSolicitacao.EmAnalise,
+            decididaPorId: coordenadorSemSuperior ? contaDoDono.id : null,
+            decididaEm: coordenadorSemSuperior ? agora().toISOString() : null,
+          };
           b.solicitacoes.push(novo);
           return solicitacao(b, novo);
         }),
@@ -593,27 +637,28 @@ export function criarGatewayMock({
             throw new ErroAcessoNegado(
               registro.colaboradorId === eu.colaborador.id
                 ? 'Você não pode aprovar ou recusar a sua própria solicitação.'
-                : 'Somente o coordenador escolhido ou um administrador pode aprovar ou recusar esta solicitação.',
+                : 'Somente o supervisor encaminhado ou o coordenador pode aprovar ou recusar esta solicitação.',
             );
           }
-          const podeEditar = ehAdministrador(eu) || registro.colaboradorId === eu.colaborador.id;
+          const podeEditar = ehCoordenador(eu) || registro.colaboradorId === eu.colaborador.id;
           if (!podeEditar) {
             const mesmosPeriodos =
               [...registro.periodoIds].sort().join() === dto.periodos.map((p) => p.id).sort().join();
             const somenteStatus =
               dto.colaborador.id === registro.colaboradorId &&
-              dto.coordenador.id === registro.coordenadorId &&
               mesmosPeriodos &&
               dto.abono === registro.abono;
             if (!somenteStatus) throw new ErroAcessoNegado('Você só pode alterar o status desta solicitação.');
-          } else if (!ehAdministrador(eu) && dto.colaborador.id !== registro.colaboradorId) {
-            throw new ErroAcessoNegado('Você não pode transferir a solicitação para outro colaborador.');
           }
           if (isStatusFinal(registro.status)) {
             throw new ErroRegraNegocio('Solicitações aprovadas ou recusadas não podem ser alteradas.');
           }
 
-          validarSolicitacaoDto(b, dto);
+          // Como na API: trocar o colaborador deixaria a solicitação com o supervisor de outra pessoa.
+          if (dto.colaborador.id !== registro.colaboradorId) {
+            throw new ErroRegraNegocio('O colaborador da solicitação não pode ser trocado.');
+          }
+          validarSolicitacaoDto(b, dto, id);
           Object.assign(registro, camposDoDto(dto));
           if (ehDecisao) {
             registro.decididaPorId = eu.id;
@@ -627,7 +672,7 @@ export function criarGatewayMock({
           if (!registro || !podeVerSolicitacao(eu, resumo(registro))) throw new ErroNaoEncontrado('Solicitação não encontrada.');
           if (!podeExcluirSolicitacao(eu, resumo(registro))) {
             throw new ErroAcessoNegado(
-              'Somente o próprio colaborador, antes da decisão, ou um administrador pode excluir esta solicitação.',
+              'Somente o próprio colaborador, antes da decisão, ou o coordenador pode excluir esta solicitação.',
             );
           }
           b.solicitacoes = b.solicitacoes.filter((s) => s.id !== id);

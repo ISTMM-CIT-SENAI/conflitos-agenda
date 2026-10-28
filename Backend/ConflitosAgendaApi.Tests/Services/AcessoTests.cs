@@ -7,16 +7,16 @@ namespace ConflitosAgendaApi.Tests.Services;
 
 public class RegrasAcessoTests
 {
-    private static UsuarioAtual Usuario(int colaboradorId, bool admin = false, bool coordenador = false) =>
+    private static UsuarioAtual Usuario(int colaboradorId, bool coordenador = false, bool supervisor = false) =>
         new(UsuarioId: colaboradorId * 10, NomeUsuario: $"u{colaboradorId}", ColaboradorId: colaboradorId,
-            NomeColaborador: $"Pessoa {colaboradorId}", IsAdministrador: admin, IsCoordenador: coordenador,
+            NomeColaborador: $"Pessoa {colaboradorId}", IsCoordenador: coordenador, IsSupervisor: supervisor,
             PrecisaTrocarSenha: false);
 
     [Fact]
-    public void Nivel_DeveSerDerivadoDoColaboradorQuandoNaoForAdministrador()
+    public void Nivel_DeveSerDerivadoDoColaboradorQuandoNaoForCoordenador()
     {
-        Assert.Equal(NivelAcesso.Administrador, Usuario(1, admin: true).Nivel);
         Assert.Equal(NivelAcesso.Coordenador, Usuario(1, coordenador: true).Nivel);
+        Assert.Equal(NivelAcesso.Supervisor, Usuario(1, supervisor: true).Nivel);
         Assert.Equal(NivelAcesso.Colaborador, Usuario(1).Nivel);
     }
 
@@ -24,26 +24,63 @@ public class RegrasAcessoTests
     public void Colaborador_SoVeAsProprias()
     {
         var colaborador = Usuario(1);
-        Assert.True(RegrasAcesso.PodeVerSolicitacao(colaborador, colaboradorId: 1, coordenadorId: 2));
-        Assert.False(RegrasAcesso.PodeVerSolicitacao(colaborador, colaboradorId: 3, coordenadorId: 2));
+        Assert.True(RegrasAcesso.PodeVerSolicitacao(colaborador, colaboradorId: 1, supervisorId: 2));
+        Assert.False(RegrasAcesso.PodeVerSolicitacao(colaborador, colaboradorId: 3, supervisorId: 2));
     }
 
     [Fact]
-    public void Coordenador_VeAsAtribuidasEDecideSoAsAtribuidas()
+    public void Supervisor_VeAsAtribuidasEDecideSoAsAtribuidas()
     {
-        var coordenador = Usuario(2, coordenador: true);
-        Assert.True(RegrasAcesso.PodeVerSolicitacao(coordenador, colaboradorId: 1, coordenadorId: 2));
-        Assert.True(RegrasAcesso.PodeDecidir(coordenador, colaboradorId: 1, coordenadorId: 2));
-        Assert.False(RegrasAcesso.PodeDecidir(coordenador, colaboradorId: 1, coordenadorId: 5));
-        Assert.False(RegrasAcesso.PodeEditarSolicitacao(coordenador, colaboradorId: 1));
+        var supervisor = Usuario(2, supervisor: true);
+        Assert.True(RegrasAcesso.PodeVerSolicitacao(supervisor, colaboradorId: 1, supervisorId: 2));
+        Assert.True(RegrasAcesso.PodeDecidir(supervisor, colaboradorId: 1, supervisorId: 2));
+        Assert.False(RegrasAcesso.PodeDecidir(supervisor, colaboradorId: 1, supervisorId: 5));
+        Assert.False(RegrasAcesso.PodeEditarSolicitacao(supervisor, colaboradorId: 1));
     }
 
     [Fact]
-    public void NinguemDecideAPropria_NemOAdministrador()
+    public void CoordenadorESupervisorVeemAMesmaSolicitacao_OutroSupervisorNao()
     {
-        var admin = Usuario(9, admin: true, coordenador: true);
-        Assert.True(RegrasAcesso.PodeDecidir(admin, colaboradorId: 1, coordenadorId: 2));
-        Assert.False(RegrasAcesso.PodeDecidir(admin, colaboradorId: 9, coordenadorId: 2));
+        var coordenador = Usuario(9, coordenador: true, supervisor: true);
+        var supervisor = Usuario(2, supervisor: true);
+        var outroSupervisor = Usuario(3, supervisor: true);
+
+        Assert.True(RegrasAcesso.PodeVerSolicitacao(coordenador, colaboradorId: 1, supervisorId: 2));
+        Assert.True(RegrasAcesso.PodeVerSolicitacao(supervisor, colaboradorId: 1, supervisorId: 2));
+        Assert.False(RegrasAcesso.PodeVerSolicitacao(outroSupervisor, colaboradorId: 1, supervisorId: 2));
+        // Os dois podem decidir; o sistema registra quem decidiu.
+        Assert.True(RegrasAcesso.PodeDecidir(coordenador, colaboradorId: 1, supervisorId: 2));
+        Assert.True(RegrasAcesso.PodeDecidir(supervisor, colaboradorId: 1, supervisorId: 2));
+    }
+
+    [Fact]
+    public void SupervisorSoMudaOStatus_NaoOsPeriodosNemOAbono()
+    {
+        var supervisor = new Colaborador("Bruno", new(), true);
+        var atual = new ConflitosAgendaApi.Dtos.Solicitacoes.SolicitacaoResponseDto(new Solicitacao(
+            new Colaborador("Carla", new(), false),
+            [new Periodo(new DateTime(2027, 1, 4), new DateTime(2027, 2, 3))],
+            StatusSolicitacao.Em_Analise, DateTimeOffset.UtcNow, supervisor));
+        ConflitosAgendaApi.Dtos.Solicitacoes.SolicitacaoUpdateDto Pedido(int periodoId, bool? abono) => new()
+        {
+            Colaborador = new() { Id = atual.Colaborador.Id },
+            Periodos = [new() { Id = periodoId }],
+            Status = StatusSolicitacao.Aprovada,
+            Abono = abono,
+        };
+        var periodoAtual = atual.Periodos[0].Id;
+
+        Assert.True(RegrasAcesso.AlteraSomenteStatus(atual, Pedido(periodoAtual, abono: null)));
+        Assert.False(RegrasAcesso.AlteraSomenteStatus(atual, Pedido(periodoAtual + 1, abono: null)));
+        Assert.False(RegrasAcesso.AlteraSomenteStatus(atual, Pedido(periodoAtual, abono: true)));
+    }
+
+    [Fact]
+    public void NinguemDecideAPropria_NemOCoordenador()
+    {
+        var coordenador = Usuario(9, coordenador: true, supervisor: true);
+        Assert.True(RegrasAcesso.PodeDecidir(coordenador, colaboradorId: 1, supervisorId: 2));
+        Assert.False(RegrasAcesso.PodeDecidir(coordenador, colaboradorId: 9, supervisorId: 2));
     }
 
     [Fact]
@@ -52,7 +89,7 @@ public class RegrasAcessoTests
         var colaborador = Usuario(1);
         Assert.True(RegrasAcesso.PodeExcluirSolicitacao(colaborador, 1, StatusSolicitacao.Em_Analise));
         Assert.False(RegrasAcesso.PodeExcluirSolicitacao(colaborador, 1, StatusSolicitacao.Aprovada));
-        Assert.True(RegrasAcesso.PodeExcluirSolicitacao(Usuario(9, admin: true), 1, StatusSolicitacao.Aprovada));
+        Assert.True(RegrasAcesso.PodeExcluirSolicitacao(Usuario(9, coordenador: true), 1, StatusSolicitacao.Aprovada));
     }
 
     [Theory]
@@ -146,17 +183,17 @@ public class AutenticacaoServiceTests
 public class UsuarioServiceTests
 {
     [Fact]
-    public async Task NaoPermiteDesativarASiMesmoNemOUltimoAdministrador()
+    public async Task NaoPermiteDesativarASiMesmoNemOUltimoCoordenador()
     {
-        var admin = new Usuario("admin", "hash", new Colaborador("Admin", new(), true), isAdministrador: true);
-        var repositorio = new FakeUsuarioRepository(admin);
+        var coordenador = new Usuario("hernane", "hash", new Colaborador("Hernane", new(), true), isCoordenador: true);
+        var repositorio = new FakeUsuarioRepository(coordenador);
         var servico = new UsuarioService(repositorio, null!, new PasswordHasher<Usuario>());
-        var euMesmo = UsuarioAtual.De(admin);
+        var euMesmo = UsuarioAtual.De(coordenador);
         var outro = euMesmo with { UsuarioId = 999 };
 
-        await Assert.ThrowsAsync<ArgumentException>(() => servico.DesativarAsync(admin.Id, euMesmo));
-        var excecao = await Assert.ThrowsAsync<ArgumentException>(() => servico.DesativarAsync(admin.Id, outro));
-        Assert.Contains("pelo menos um administrador", excecao.Message);
+        await Assert.ThrowsAsync<ArgumentException>(() => servico.DesativarAsync(coordenador.Id, euMesmo));
+        var excecao = await Assert.ThrowsAsync<ArgumentException>(() => servico.DesativarAsync(coordenador.Id, outro));
+        Assert.Contains("pelo menos um coordenador", excecao.Message);
     }
 
     [Fact]
@@ -185,9 +222,8 @@ internal sealed class FakeUsuarioRepository(Usuario usuario) : IUsuarioRepositor
         Task.FromResult<Usuario?>(Usuario.Normalizar(nomeUsuario) == usuario.NomeUsuarioNormalizado ? usuario : null);
     public Task<Usuario?> GetByColaboradorIdAsync(int colaboradorId) => Task.FromResult<Usuario?>(null);
     public Task<List<Usuario>> ListAllAsync() => Task.FromResult(new List<Usuario> { usuario });
-    public Task<bool> ExisteAlgumAsync() => Task.FromResult(true);
-    public Task<int> ContarAdministradoresAtivosAsync() =>
-        Task.FromResult(usuario.IsAdministrador && usuario.Ativo ? 1 : 0);
+    public Task<int> ContarCoordenadoresAtivosAsync() =>
+        Task.FromResult(usuario.IsCoordenador && usuario.Ativo ? 1 : 0);
     public Task AddAsync(Usuario novo) => Task.CompletedTask;
     public Task RemoveAsync(Usuario removido) => Task.CompletedTask;
     public Task SaveChangesAsync() => Task.CompletedTask;

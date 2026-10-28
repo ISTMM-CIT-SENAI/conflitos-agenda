@@ -158,7 +158,7 @@ function RedefinirSenhaDialog({ conta, onFechar }: { conta: ContaUsuario | null;
   );
 }
 
-type Confirmacao = { conta: ContaUsuario; acao: 'desativar' | 'reativar' | 'tornarAdmin' | 'removerAdmin' } | null;
+type Confirmacao = { conta: ContaUsuario; acao: 'desativar' | 'reativar' | 'tornarCoordenador' | 'removerCoordenador' } | null;
 
 export function UsuariosPage() {
   const servicos = useServicos();
@@ -175,10 +175,10 @@ export function UsuariosPage() {
           return servicos.usuarios.desativar(conta.id);
         case 'reativar':
           return servicos.usuarios.reativar(conta.id);
-        case 'tornarAdmin':
-          return servicos.usuarios.definirAdministrador(conta.id, true);
-        case 'removerAdmin':
-          return servicos.usuarios.definirAdministrador(conta.id, false);
+        case 'tornarCoordenador':
+          return servicos.usuarios.definirCoordenador(conta.id, true);
+        case 'removerCoordenador':
+          return servicos.usuarios.definirCoordenador(conta.id, false);
       }
     },
     { sucesso: 'Acesso atualizado.' },
@@ -188,8 +188,8 @@ export function UsuariosPage() {
     () => ({
       desativar: { titulo: 'Desativar acesso?', mensagem: 'A pessoa não conseguirá mais entrar. O histórico dela é preservado e o acesso pode ser reativado depois.', botao: 'Desativar', cor: 'error' as const },
       reativar: { titulo: 'Reativar acesso?', mensagem: 'A pessoa voltará a entrar com a senha atual.', botao: 'Reativar', cor: 'primary' as const },
-      tornarAdmin: { titulo: 'Tornar administrador?', mensagem: 'A pessoa terá acesso total ao sistema.', botao: 'Tornar administrador', cor: 'warning' as const },
-      removerAdmin: { titulo: 'Remover administrador?', mensagem: 'A pessoa passará a ter o acesso de coordenador ou de colaborador, conforme o cadastro.', botao: 'Remover', cor: 'warning' as const },
+      tornarCoordenador: { titulo: 'Tornar coordenador?', mensagem: 'A pessoa terá acesso total ao sistema.', botao: 'Tornar coordenador', cor: 'warning' as const },
+      removerCoordenador: { titulo: 'Remover coordenador?', mensagem: 'A pessoa passará a ter o acesso de supervisor ou de colaborador, conforme o cadastro.', botao: 'Remover', cor: 'warning' as const },
     }),
     [],
   );
@@ -203,8 +203,8 @@ export function UsuariosPage() {
       width: 160,
       valueGetter: (_, row) => ROTULO_NIVEL[row.nivel],
       renderCell: ({ row }) =>
-        row.isAdministrador ? (
-          <Chip icon={<AdminPanelSettingsOutlinedIcon />} label="Administrador" size="small" color="primary" variant="outlined" />
+        row.isCoordenador ? (
+          <Chip icon={<AdminPanelSettingsOutlinedIcon />} label="Coordenador" size="small" color="primary" variant="outlined" />
         ) : (
           ROTULO_NIVEL[row.nivel]
         ),
@@ -220,11 +220,11 @@ export function UsuariosPage() {
         return [
           <GridActionsCellItem key="senha" icon={<KeyOutlinedIcon />} label="Redefinir senha" onClick={() => setRedefinindo(row)} />,
           <GridActionsCellItem
-            key="admin"
+            key="coordenador"
             icon={<AdminPanelSettingsOutlinedIcon />}
-            label={row.isAdministrador ? 'Remover administrador' : 'Tornar administrador'}
+            label={row.isCoordenador ? 'Remover coordenador' : 'Tornar coordenador'}
             disabled={souEu}
-            onClick={() => setConfirmacao({ conta: row, acao: row.isAdministrador ? 'removerAdmin' : 'tornarAdmin' })}
+            onClick={() => setConfirmacao({ conta: row, acao: row.isCoordenador ? 'removerCoordenador' : 'tornarCoordenador' })}
           />,
           row.ativo ? (
             <GridActionsCellItem
@@ -257,8 +257,8 @@ export function UsuariosPage() {
       />
 
       <Alert severity="info" sx={{ mb: 2 }}>
-        O nível de acesso de quem não é administrador vem do cadastro do colaborador: coordenadores têm acesso de
-        coordenador; os demais, de colaborador. Esqueceu a senha? Use “Redefinir senha” e entregue a senha temporária à pessoa.
+        O nível de acesso de quem não é coordenador vem do cadastro do colaborador: supervisores têm acesso de
+        supervisor; os demais, de colaborador. Esqueceu a senha? Use “Redefinir senha” e entregue a senha temporária à pessoa.
       </Alert>
 
       <EstadoConsulta

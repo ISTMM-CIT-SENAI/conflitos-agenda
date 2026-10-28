@@ -15,20 +15,22 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { Link as RouterLink } from 'react-router-dom';
 import { z } from 'zod';
 import { useServicos } from '@/app/providers/useServicos';
 import { aplicarErrosDoServico } from '@/components/forms/errosDoServico';
+import { SeletorColaborador } from '@/components/forms/SeletorColaborador';
 import { validarNomeUsuario, validarSenha } from '@/domain/acesso';
 import type { Colaborador } from '@/domain/entities';
-import { useMutacao, useUsuarios } from '@/hooks/useDados';
+import { useColaboradores, useMutacao, useUsuarios } from '@/hooks/useDados';
 import { ErroServico, mensagemDeErro } from '@/services/erros';
 import { CamposAcesso } from '../usuarios/CamposAcesso';
 import { ACESSO_VAZIO, errosDeValoresAcesso, type ErrosAcesso, type ValoresAcesso } from '../usuarios/valoresAcesso';
 
 const esquema = z.object({
   nome: z.string().trim().min(1, 'Informe o nome completo.').max(150, 'O nome deve ter no máximo 150 caracteres.'),
+  respondeAId: z.number().nullable(),
 });
 
 type Formulario = z.infer<typeof esquema>;
@@ -43,6 +45,8 @@ interface ColaboradorFormDialogProps {
 export function ColaboradorFormDialog({ aberto, colaborador, onFechar }: ColaboradorFormDialogProps) {
   const servicos = useServicos();
   const usuarios = useUsuarios();
+  const colaboradores = useColaboradores();
+  const supervisores = (colaboradores.data ?? []).filter((c) => c.isSupervisor && c.id !== colaborador?.id);
   const edicao = Boolean(colaborador);
   const conta = colaborador ? usuarios.data?.find((u) => u.colaborador.id === colaborador.id) : undefined;
 
@@ -52,15 +56,16 @@ export function ColaboradorFormDialog({ aberto, colaborador, onFechar }: Colabor
 
   const {
     register,
+    control,
     handleSubmit,
     reset,
     setError,
     formState: { errors },
-  } = useForm<Formulario>({ resolver: zodResolver(esquema), defaultValues: { nome: '' } });
+  } = useForm<Formulario>({ resolver: zodResolver(esquema), defaultValues: { nome: '', respondeAId: null } });
 
   useEffect(() => {
     if (!aberto) return;
-    reset({ nome: colaborador?.nome ?? '' });
+    reset({ nome: colaborador?.nome ?? '', respondeAId: colaborador?.respondeA?.id ?? null });
   }, [aberto, colaborador, reset]);
 
   /** Limpa a seção de acesso ao fechar, para o diálogo reabrir vazio. */
@@ -108,7 +113,7 @@ export function ColaboradorFormDialog({ aberto, colaborador, onFechar }: Colabor
     salvar.mutate(dados, {
       onSuccess: fechar,
       onError: (erro) => {
-        aplicarErrosDoServico(erro, setError, ['nome']);
+        aplicarErrosDoServico(erro, setError, ['nome', 'respondeAId']);
         // O colaborador foi salvo mesmo que o acesso tenha falhado: fecha para evitar duplicá-lo.
         if (erro instanceof ErroServico && erro.message.startsWith('Colaborador salvo')) fechar();
       },
@@ -128,6 +133,21 @@ export function ColaboradorFormDialog({ aberto, colaborador, onFechar }: Colabor
               error={Boolean(errors.nome)}
               helperText={errors.nome?.message ?? 'Identifica o colaborador no sistema; não pode se repetir.'}
               required
+            />
+            <Controller
+              name="respondeAId"
+              control={control}
+              render={({ field, fieldState }) => (
+                <SeletorColaborador
+                  rotulo="Responde a"
+                  opcoes={supervisores}
+                  valor={field.value}
+                  onChange={field.onChange}
+                  carregando={colaboradores.isPending}
+                  erro={fieldState.error?.message}
+                  ajuda="Supervisor que recebe as solicitações desta pessoa. Deixe vazio só para o coordenador."
+                />
+              )}
             />
 
             <Divider />
@@ -151,7 +171,7 @@ export function ColaboradorFormDialog({ aberto, colaborador, onFechar }: Colabor
                   <CamposAcesso valores={acesso} erros={errosAcesso} onChange={setAcesso} desabilitado={salvar.isPending} />
                 ) : (
                   <Typography variant="body2" color="text.secondary">
-                    Sem acesso, o colaborador não entra no sistema; as ausências dele são lançadas por um administrador.
+                    Sem acesso, o colaborador não entra no sistema; as ausências dele são lançadas pelo coordenador.
                   </Typography>
                 )}
               </>

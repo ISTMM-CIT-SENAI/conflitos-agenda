@@ -8,13 +8,14 @@ import type { DataISO } from '@/lib/datas';
 
 export interface ColaboradorInput {
   nome: string;
+  respondeAId: number | null;
 }
 
 export interface UsuarioInput {
   colaboradorId: number;
   nomeUsuario: string;
   senhaTemporaria: string;
-  isAdministrador: boolean;
+  isCoordenador: boolean;
 }
 
 export interface ProjetoInput {
@@ -34,7 +35,6 @@ export interface PeriodoInput {
 /** Total de Dias, Pessoa Crítica, status e data de criação são derivados pelo serviço. */
 export interface SolicitacaoInput {
   colaboradorId: number;
-  coordenadorId: number;
   periodoIds: number[];
   abono: boolean;
   observacao: string;
@@ -52,7 +52,7 @@ export interface ColaboradorService {
   criar(input: ColaboradorInput): Promise<Colaborador>;
   atualizar(id: number, input: ColaboradorInput): Promise<Colaborador>;
   excluir(id: number): Promise<void>;
-  tornarCoordenador(id: number): Promise<Colaborador>;
+  tornarSupervisor(id: number): Promise<Colaborador>;
 }
 
 export interface ProjetoService {
@@ -94,7 +94,7 @@ export interface AutenticacaoService {
 export interface UsuarioService {
   listar(): Promise<ContaUsuario[]>;
   criar(input: UsuarioInput): Promise<ContaUsuario>;
-  definirAdministrador(id: number, isAdministrador: boolean): Promise<ContaUsuario>;
+  definirCoordenador(id: number, isCoordenador: boolean): Promise<ContaUsuario>;
   redefinirSenha(id: number, senhaTemporaria: string): Promise<ContaUsuario>;
   desativar(id: number): Promise<ContaUsuario>;
   reativar(id: number): Promise<ContaUsuario>;

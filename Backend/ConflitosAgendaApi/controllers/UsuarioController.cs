@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace ConflitosAgendaApi.Controllers;
 
-/// <summary>Contas de acesso. Exclusivo do Administrador.</summary>
+/// <summary>Contas de acesso. Exclusivo do Coordenador.</summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+[Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
 public class UsuarioController : ControllerBase
 {
     private readonly IUsuarioService _usuarioService;
@@ -35,14 +35,14 @@ public class UsuarioController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Add(UsuarioInsertionDto dto)
     {
-        var usuario = await _usuarioService.CriarAsync(dto.ColaboradorId, dto.NomeUsuario, dto.SenhaTemporaria, dto.IsAdministrador);
+        var usuario = await _usuarioService.CriarAsync(dto.ColaboradorId, dto.NomeUsuario, dto.SenhaTemporaria, dto.IsCoordenador);
         return Created($"/api/Usuario/{usuario.Id}", Dto(usuario));
     }
 
-    [HttpPut("{id}/administrador")]
-    public async Task<IActionResult> DefinirAdministrador(int id, DefinirAdministradorDto dto)
+    [HttpPut("{id}/coordenador")]
+    public async Task<IActionResult> DefinirCoordenador(int id, DefinirCoordenadorDto dto)
     {
-        var usuario = await _usuarioService.DefinirAdministradorAsync(id, dto.IsAdministrador, await _usuarioAtual.ObterAsync());
+        var usuario = await _usuarioService.DefinirCoordenadorAsync(id, dto.IsCoordenador, await _usuarioAtual.ObterAsync());
         return Ok(Dto(usuario));
     }
 

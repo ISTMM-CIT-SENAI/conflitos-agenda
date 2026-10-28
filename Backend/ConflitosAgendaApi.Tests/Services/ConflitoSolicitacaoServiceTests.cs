@@ -1,145 +1,74 @@
 using ConflitosAgendaApi.Models;
-using ConflitosAgendaApi.Repositories.Interfaces;
+using ConflitosAgendaApi.Repositories;
 using ConflitosAgendaApi.Services;
 
 namespace ConflitosAgendaApi.Tests.Services;
 
-public class ConflitoSolicitacaoServiceTests
+public sealed class ConflitoSolicitacaoServiceTests : IDisposable
 {
-    [Fact]
-    public async Task PossuiConflitoAsync_DeveRetornarTrueQuandoPeriodosSeSobrepoem()
+    private readonly BancoEmMemoria _banco = new();
+    private readonly ConflitoSolicitacaoService _service;
+    private readonly Colaborador _solicitante = new("Carla", new(), false);
+    private readonly Colaborador _critico = new("Diego", new(), false);
+    private readonly Colaborador _supervisor = new("Bruno", new(), true);
+
+    public ConflitoSolicitacaoServiceTests()
     {
-        var colaborador = CriarColaborador(1);
-        var pessoaCritica = CriarColaborador(2);
-        var projeto = CriarProjeto(colaborador, pessoaCritica);
-        var repository = new FakeProjetoRepository(
-            [projeto],
-            [projeto]);
-        var periodoRepository = new FakePeriodoRepository(
-            new Dictionary<int, IEnumerable<Periodo>>
-            {
-                [2] = [CriarPeriodo(10, 20)]
-            });
-        var service = new ConflitoSolicitacaoService(repository, periodoRepository);
+        var contexto = _banco.Contexto;
+        _service = new ConflitoSolicitacaoService(new ProjetoRepository(contexto), new SolicitacaoRepository(contexto));
+        contexto.Colaboradores.AddRange(_solicitante, _critico, _supervisor);
+        // A solicitante não é pessoa crítica: o conflito vale mesmo assim (ver CONTEXT.md).
+        contexto.Projetos.Add(new Projeto("Portal", [_critico], [_solicitante, _critico]));
+        contexto.SaveChanges();
+    }
 
-        var solicitacao = CriarSolicitacao(colaborador, CriarPeriodo(15, 25));
+    public void Dispose() => _banco.Dispose();
 
-        Assert.True(await service.PossuiConflitoAsync(solicitacao));
+    private static Periodo Periodo(int diaInicio, int diaRetorno, Colaborador dono) =>
+        new(new DateTime(2027, 3, diaInicio), new DateTime(2027, 3, diaRetorno), dono.Id);
+
+    private Solicitacao Solicitar(Colaborador dono, Periodo periodo, StatusSolicitacao status = StatusSolicitacao.Em_Analise)
+    {
+        var solicitacao = new Solicitacao(dono, [periodo], status, DateTimeOffset.UtcNow, _supervisor);
+        _banco.Contexto.Solicitacoes.Add(solicitacao);
+        _banco.Contexto.SaveChanges();
+        return solicitacao;
     }
 
     [Fact]
-    public async Task PossuiConflitoAsync_DeveRetornarFalseQuandoPeriodosSaoAdjacentes()
+    public async Task HaConflitoQuandoSeSobrepoeAUmaSolicitacaoDaPessoaCritica()
     {
-        var colaborador = CriarColaborador(1);
-        var pessoaCritica = CriarColaborador(2);
-        var projeto = CriarProjeto(colaborador, pessoaCritica);
-        var service = new ConflitoSolicitacaoService(
-            new FakeProjetoRepository([projeto], [projeto]),
-            new FakePeriodoRepository(new Dictionary<int, IEnumerable<Periodo>>
-            {
-                [2] = [CriarPeriodo(20, 30)]
-            }));
+        Solicitar(_critico, Periodo(10, 20, _critico));
+        var alvo = Solicitar(_solicitante, Periodo(15, 25, _solicitante));
 
-        var solicitacao = CriarSolicitacao(colaborador, CriarPeriodo(10, 20));
-
-        Assert.False(await service.PossuiConflitoAsync(solicitacao));
+        Assert.True(await _service.PossuiConflitoAsync(alvo));
     }
 
     [Fact]
-    public async Task PossuiConflitoAsync_DeveRejeitarSolicitacaoSemPeriodos()
+    public async Task PeriodosAdjacentesNaoSaoConflito()
     {
-        var service = new ConflitoSolicitacaoService(
-            new FakeProjetoRepository([], []),
-            new FakePeriodoRepository(new Dictionary<int, IEnumerable<Periodo>>()));
-        var solicitacao = CriarSolicitacao(CriarColaborador(1), null);
+        Solicitar(_critico, Periodo(20, 30, _critico));
+        var alvo = Solicitar(_solicitante, Periodo(10, 20, _solicitante));
 
-        await Assert.ThrowsAsync<ArgumentException>(
-            () => service.PossuiConflitoAsync(solicitacao));
+        Assert.False(await _service.PossuiConflitoAsync(alvo));
     }
 
-    private static Projeto CriarProjeto(
-        Colaborador colaborador,
-        Colaborador pessoaCritica)
+    [Fact]
+    public async Task SolicitacaoRecusadaOuPeriodoSemSolicitacaoNaoContam()
     {
-        return new Projeto(
-            "Projeto",
-            [colaborador, pessoaCritica],
-            [colaborador]);
+        Solicitar(_critico, Periodo(10, 20, _critico), StatusSolicitacao.Recusada);
+        _banco.Contexto.Periodos.Add(Periodo(12, 22, _critico));
+        _banco.Contexto.SaveChanges();
+        var alvo = Solicitar(_solicitante, Periodo(15, 25, _solicitante));
+
+        Assert.False(await _service.PossuiConflitoAsync(alvo));
     }
 
-    private static Solicitacao CriarSolicitacao(
-        Colaborador colaborador,
-        Periodo? periodo)
+    [Fact]
+    public async Task DeveRejeitarSolicitacaoSemPeriodos()
     {
-        return new Solicitacao(
-            colaborador,
-            periodo is null ? [] : [periodo],
-            StatusSolicitacao.Em_Analise,
-            DateTimeOffset.UtcNow,
-            CriarColaborador(3));
-    }
+        var vazia = new Solicitacao(_solicitante, [], StatusSolicitacao.Em_Analise, DateTimeOffset.UtcNow, _supervisor);
 
-    private static Colaborador CriarColaborador(int id)
-    {
-        var colaborador = new Colaborador($"Pessoa {id}", new(), false);
-        typeof(Colaborador)
-            .GetProperty(nameof(Colaborador.Id))!
-            .SetValue(colaborador, id);
-        return colaborador;
-    }
-
-    private static Periodo CriarPeriodo(int inicio, int fim)
-    {
-        var periodo = new Periodo(
-            new DateTime(2026, 10, inicio),
-            new DateTime(2026, 10, fim));
-        return periodo;
-    }
-
-    private sealed class FakeProjetoRepository : IProjetoRepository
-    {
-        private readonly IEnumerable<Projeto> _colaboradorProjetos;
-        private readonly IEnumerable<Projeto> _criticoProjetos;
-
-        public FakeProjetoRepository(
-            IEnumerable<Projeto> colaboradorProjetos,
-            IEnumerable<Projeto> criticoProjetos)
-        {
-            _colaboradorProjetos = colaboradorProjetos;
-            _criticoProjetos = criticoProjetos;
-        }
-
-        public Task<Projeto?> GetByIdAsync(int id) => Task.FromResult<Projeto?>(null);
-        public Task<IEnumerable<Projeto>> ListAllAsync() => Task.FromResult<IEnumerable<Projeto>>([]);
-        public Task<Projeto?> AddAsync(Projeto projeto) => Task.FromResult<Projeto?>(projeto);
-        public Task<Projeto?> UpdateAsync(Projeto projeto) => Task.FromResult<Projeto?>(projeto);
-        public Task<Projeto?> DeleteAsync(int id) => Task.FromResult<Projeto?>(null);
-
-        public Task<IEnumerable<Projeto>> ListProjetosByColaboradorIdAsync(int colaboradorId) =>
-            Task.FromResult(_colaboradorProjetos);
-
-        public Task<IEnumerable<Projeto>> ListProjetosByPessoasCriticasIdAsync(int pessoaCriticaId) =>
-            Task.FromResult(_criticoProjetos);
-    }
-
-    private sealed class FakePeriodoRepository : IPeriodoRepository
-    {
-        private readonly IReadOnlyDictionary<int, IEnumerable<Periodo>> _periodos;
-
-        public FakePeriodoRepository(IReadOnlyDictionary<int, IEnumerable<Periodo>> periodos)
-        {
-            _periodos = periodos;
-        }
-
-        public Task<Periodo?> GetByIdAsync(int id) => Task.FromResult<Periodo?>(null);
-        public Task<IEnumerable<Periodo>> ListAllAsync() => Task.FromResult<IEnumerable<Periodo>>([]);
-        public Task<Periodo?> AddAsync(Periodo periodo) => Task.FromResult<Periodo?>(periodo);
-        public Task<Periodo?> UpdateAsync(Periodo periodo) => Task.FromResult<Periodo?>(periodo);
-        public Task<Periodo?> DeleteAsync(int id) => Task.FromResult<Periodo?>(null);
-
-        public Task<IEnumerable<Periodo>> ListByColaboradorIdAsync(int colaboradorId) =>
-            Task.FromResult(_periodos.TryGetValue(colaboradorId, out var periodos)
-                ? periodos
-                : Enumerable.Empty<Periodo>());
+        await Assert.ThrowsAsync<ArgumentException>(() => _service.PossuiConflitoAsync(vazia));
     }
 }

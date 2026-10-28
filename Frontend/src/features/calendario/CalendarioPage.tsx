@@ -11,7 +11,7 @@ import { Box, Button, Chip, Grid, MenuItem, Paper, Stack, TextField, Typography 
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUsuarioLogado } from '@/app/providers/useSessao';
-import { ehAdministrador } from '@/domain/acesso';
+import { ehCoordenador } from '@/domain/acesso';
 import { PageHeader } from '@/components/common/PageHeader';
 import { HEX_SEM_SOLICITACAO, VISUAL_STATUS } from '@/components/common/status';
 import { EstadoConsulta } from '@/components/feedback/EstadoConsulta';
@@ -40,7 +40,7 @@ interface DadosEvento {
 export function CalendarioPage() {
   const navigate = useNavigate();
   const usuario = useUsuarioLogado();
-  const admin = ehAdministrador(usuario);
+  const admin = ehCoordenador(usuario);
   const filtros = useFiltrosUrl<ChaveFiltro>();
   const colaboradorId = filtros.obterNumero('colaborador');
   const statusSelecionados = filtros.obterLista('status');

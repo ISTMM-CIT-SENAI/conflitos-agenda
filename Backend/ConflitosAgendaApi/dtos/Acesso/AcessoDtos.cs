@@ -28,7 +28,7 @@ public class UsuarioInsertionDto
     public string NomeUsuario { get; set; } = string.Empty;
     [Required(ErrorMessage = "Informe a senha temporária.")]
     public string SenhaTemporaria { get; set; } = string.Empty;
-    public bool IsAdministrador { get; set; }
+    public bool IsCoordenador { get; set; }
 }
 
 public class RedefinirSenhaDto
@@ -37,24 +37,24 @@ public class RedefinirSenhaDto
     public string SenhaTemporaria { get; set; } = string.Empty;
 }
 
-public class DefinirAdministradorDto
+public class DefinirCoordenadorDto
 {
-    public bool IsAdministrador { get; set; }
+    public bool IsCoordenador { get; set; }
 }
 
 public class ColaboradorDoUsuarioDto
 {
     public int Id { get; init; }
     public string Nome { get; init; } = string.Empty;
-    public bool IsCoordenador { get; init; }
+    public bool IsSupervisor { get; init; }
 }
 
 internal static class NivelAcessoTexto
 {
     public static string De(NivelAcesso nivel) => nivel switch
     {
-        NivelAcesso.Administrador => "administrador",
         NivelAcesso.Coordenador => "coordenador",
+        NivelAcesso.Supervisor => "supervisor",
         _ => "colaborador",
     };
 }
@@ -64,7 +64,7 @@ public class UsuarioLogadoDto
 {
     public int Id { get; init; }
     public string NomeUsuario { get; init; } = string.Empty;
-    /// <summary>"administrador", "coordenador" ou "colaborador".</summary>
+    /// <summary>"coordenador", "supervisor" ou "colaborador".</summary>
     public string Nivel { get; init; } = string.Empty;
     public bool PrecisaTrocarSenha { get; init; }
     public ColaboradorDoUsuarioDto Colaborador { get; init; } = new();
@@ -79,18 +79,18 @@ public class UsuarioLogadoDto
         {
             Id = usuario.ColaboradorId,
             Nome = usuario.NomeColaborador,
-            IsCoordenador = usuario.IsCoordenador,
+            IsSupervisor = usuario.IsSupervisor,
         },
     };
 }
 
-/// <summary>Conta de acesso vista pelo Administrador na tela de Usuários.</summary>
+/// <summary>Conta de acesso vista pelo Coordenador na tela de Usuários.</summary>
 public class UsuarioResponseDto
 {
     public int Id { get; init; }
     public string NomeUsuario { get; init; } = string.Empty;
     public string Nivel { get; init; } = string.Empty;
-    public bool IsAdministrador { get; init; }
+    public bool IsCoordenador { get; init; }
     public bool Ativo { get; init; }
     public bool PrecisaTrocarSenha { get; init; }
     public bool Bloqueado { get; init; }
@@ -104,7 +104,7 @@ public class UsuarioResponseDto
             Id = usuario.Id,
             NomeUsuario = usuario.NomeUsuario,
             Nivel = NivelAcessoTexto.De(atual.Nivel),
-            IsAdministrador = usuario.IsAdministrador,
+            IsCoordenador = usuario.IsCoordenador,
             Ativo = usuario.Ativo,
             PrecisaTrocarSenha = usuario.PrecisaTrocarSenha,
             Bloqueado = usuario.EstaBloqueado(agoraUtc),
@@ -112,7 +112,7 @@ public class UsuarioResponseDto
             {
                 Id = usuario.ColaboradorId,
                 Nome = usuario.Colaborador.Nome,
-                IsCoordenador = usuario.Colaborador.IsCoordenador,
+                IsSupervisor = usuario.Colaborador.IsSupervisor,
             },
         };
     }

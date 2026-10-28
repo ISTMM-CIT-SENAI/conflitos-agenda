@@ -31,7 +31,7 @@ public class PeriodoController : ControllerBase
         return visiveis.Select(p => new PeriodoResponseDto(p));
     }
 
-    /// <summary>Só o dono do período (ou um Administrador) cria, altera ou exclui.</summary>
+    /// <summary>Só o dono do período (ou o Coordenador) cria, altera ou exclui.</summary>
     private async Task GarantirPodeGerenciarAsync(int idColaborador)
     {
         var usuario = await _usuarioAtual.ObterAsync();
@@ -112,29 +112,5 @@ public class PeriodoController : ControllerBase
     public async Task<IActionResult> ListByColaboradorId(int colaboradorId)
     {
         return Ok(await VisiveisAsync(await _periodoService.ListByColaboradorIdAsync(colaboradorId)));
-    }
-
-    [HttpGet("validar/{periodoId}")]
-    public async Task<IActionResult> ValidarPeriodo(int periodoId)
-    {
-        var resultadoValidacao = await _periodoService.ValidarPeriodoAsync(periodoId);
-        if (!resultadoValidacao)
-        {
-            return BadRequest("O período informado é inválido.");
-        }
-
-        return Ok();
-    }
-
-    [HttpGet("validar")]
-    public async Task<IActionResult> ValidarPeriodo(DateTime dataInicio, DateTime dataFim)
-    {
-        var resultadoValidacao = await _periodoService.ValidarPeriodoAsync(dataInicio, dataFim);
-        if (!resultadoValidacao)
-        {
-            return BadRequest("A data de início deve ser anterior à data de fim.");
-        }
-
-        return Ok();
     }
 }

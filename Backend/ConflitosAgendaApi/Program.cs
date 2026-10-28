@@ -66,7 +66,7 @@ builder.Services
 builder.Services.AddAuthorizationBuilder()
     // Toda rota exige login, salvo as marcadas com [AllowAnonymous].
     .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-    .AddPolicy(SessaoCookie.PoliticaAdministrador, politica => politica.RequireRole(SessaoCookie.PapelAdministrador));
+    .AddPolicy(SessaoCookie.PoliticaCoordenador, politica => politica.RequireRole(SessaoCookie.PapelCoordenador));
 
 var app = builder.Build();
 
@@ -76,7 +76,7 @@ using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
 }
-await InicializacaoAdministrador.GarantirAsync(app.Services);
+await CargaInicial.GarantirAsync(app.Services);
 
 // Regras de negócio violadas (ArgumentException) viram 400 e registros inexistentes
 // (KeyNotFoundException) viram 404, sempre como ProblemDetails com a mensagem em `detail`.
@@ -106,7 +106,7 @@ app.UseExceptionHandler(erro => erro.Run(async context =>
 app.UseHttpsRedirection();
 app.UseAuthentication();
 
-// Enquanto a senha for temporária (primeiro acesso ou redefinida pelo Administrador),
+// Enquanto a senha for temporária (primeiro acesso ou redefinida pelo Coordenador),
 // só as rotas de /api/Auth respondem: o restante exige a troca de senha.
 app.Use(async (contexto, proximo) =>
 {

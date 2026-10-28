@@ -10,5 +10,5 @@ public interface IColaboradorService
     Task<Colaborador?> AddAsync(ColaboradorInsertionDto colaborador);
     Task<Colaborador?> UpdateAsync(int id, ColaboradorUpdateDto colaborador);
     Task<bool?> DeleteAsync(int id);
-    Task<Colaborador?> TornarCoordenadorAsync(int id, ColaboradorUpdateDto colaborador);
+    Task<Colaborador?> TornarSupervisorAsync(int id, ColaboradorUpdateDto colaborador);
 }

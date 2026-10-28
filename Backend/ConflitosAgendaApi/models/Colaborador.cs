@@ -10,24 +10,45 @@ public sealed class Colaborador
     )
     {
     }
-    public Colaborador(string nome, List<Projeto> projetos, bool isCoordenador)
+    public Colaborador(string nome, List<Projeto> projetos, bool isSupervisor)
     {
         this.Nome = nome;
         this.Projetos = projetos;
-        this.IsCoordenador = isCoordenador;
+        this.IsSupervisor = isSupervisor;
     }
     public int Id { get; private set; }
     public string Nome { get; private set; } = string.Empty;
-    public bool IsCoordenador { get; private set;}
+    public bool IsSupervisor { get; private set;}
     public List<Projeto> Projetos { get; private set; } = new();
+    /// <summary>A quem o colaborador responde (supervisor ou o Coordenador): recebe as solicitações dele.</summary>
+    public int? RespondeAId { get; private set; }
+    public Colaborador? RespondeA { get; private set; }
 
-    public void TornarCoordenador()
+    public void TornarSupervisor()
     {
-        IsCoordenador = true;
+        IsSupervisor = true;
     }
 
     public void AtualizarDados(string nome)
     {
         Nome = nome;
+    }
+
+    public void DefinirRespondeA(Colaborador? respondeA)
+    {
+        if (respondeA is not null && respondeA == this)
+        {
+            throw new ArgumentException("O colaborador não pode responder a si mesmo.");
+        }
+        if (respondeA is not null && !respondeA.IsSupervisor)
+        {
+            throw new ArgumentException($"{respondeA.Nome} não é supervisor.");
+        }
+        // O EF deriva RespondeAId da navegação ao salvar (o supervisor pode ainda não ter Id).
+        RespondeA = respondeA;
+        if (respondeA is null)
+        {
+            RespondeAId = null;
+        }
     }
 }

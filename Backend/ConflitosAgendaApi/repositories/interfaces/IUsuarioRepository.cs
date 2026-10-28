@@ -9,8 +9,7 @@ public interface IUsuarioRepository
     Task<Usuario?> GetByNomeUsuarioAsync(string nomeUsuario);
     Task<Usuario?> GetByColaboradorIdAsync(int colaboradorId);
     Task<List<Usuario>> ListAllAsync();
-    Task<bool> ExisteAlgumAsync();
-    Task<int> ContarAdministradoresAtivosAsync();
+    Task<int> ContarCoordenadoresAtivosAsync();
     Task AddAsync(Usuario usuario);
     Task RemoveAsync(Usuario usuario);
     Task SaveChangesAsync();

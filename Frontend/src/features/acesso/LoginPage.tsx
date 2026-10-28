@@ -56,7 +56,7 @@ export function LoginPage() {
   };
 
   return (
-    <LayoutAcesso titulo="Entrar" subtitulo="Use o nome de usuário e a senha fornecidos pelo administrador.">
+    <LayoutAcesso titulo="Entrar" subtitulo="Use o nome de usuário e a senha fornecidos pelo coordenador.">
       <form
         noValidate
         onSubmit={(e) => {
@@ -102,7 +102,7 @@ export function LoginPage() {
             Entrar
           </Button>
           <Typography variant="caption" color="text.secondary" sx={{ textAlign: 'center' }}>
-            Esqueceu a senha? Peça ao administrador do sistema uma senha temporária.
+            Esqueceu a senha? Peça ao coordenador do sistema uma senha temporária.
           </Typography>
         </Stack>
       </form>

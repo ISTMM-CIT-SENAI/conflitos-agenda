@@ -31,7 +31,7 @@ import { TabelaDados } from '@/components/tables/TabelaDados';
 import type { Solicitacao } from '@/domain/entities';
 import { ROTULO_STATUS, TODOS_STATUS, isStatusSolicitacao } from '@/domain/enums/statusSolicitacao';
 import { useUsuarioLogado } from '@/app/providers/useSessao';
-import { ehAdministrador, podeEditarSolicitacao, podeExcluirSolicitacao } from '@/domain/acesso';
+import { ehCoordenador, podeEditarSolicitacao, podeExcluirSolicitacao } from '@/domain/acesso';
 import { intervaloDoPeriodo, seSobrepoem } from '@/domain/validation/periodo';
 import { violacoesDaSolicitacao } from '@/domain/validation/solicitacao';
 import { useColaboradores, useMutacao, useSolicitacoes } from '@/hooks/useDados';
@@ -47,7 +47,7 @@ function correspondeBusca(s: Solicitacao, busca: string): boolean {
     `#${s.id}` === busca.trim() ||
     String(s.id) === busca.trim() ||
     contemTexto(s.colaborador.nome, busca) ||
-    contemTexto(s.coordenador.nome, busca) ||
+    contemTexto(s.supervisor.nome, busca) ||
     contemTexto(s.observacao ?? '', busca)
   );
 }
@@ -96,7 +96,7 @@ export function SolicitacoesPage() {
       ),
     },
     { field: 'colaborador', headerName: 'Colaborador', flex: 1, minWidth: 160, valueGetter: (_, row) => row.colaborador.nome },
-    { field: 'coordenador', headerName: 'Coordenador', flex: 1, minWidth: 150, valueGetter: (_, row) => row.coordenador.nome },
+    { field: 'supervisor', headerName: 'Supervisor', flex: 1, minWidth: 150, valueGetter: (_, row) => row.supervisor.nome },
     {
       field: 'periodos',
       headerName: 'Períodos',
@@ -178,7 +178,7 @@ export function SolicitacoesPage() {
     <>
       <PageHeader
         titulo="Solicitações"
-        subtitulo="Pedidos de ausência aguardando ou já analisados pelos coordenadores."
+        subtitulo="Pedidos de ausência aguardando ou já analisados pelos supervisores."
         acoes={
           <Button component={RouterLink} to="/solicitacoes/nova" variant="contained" startIcon={<AddIcon />}>
             Nova solicitação
@@ -220,7 +220,7 @@ export function SolicitacoesPage() {
               ))}
             </TextField>
           </Grid>
-          {(ehAdministrador(usuario) || usuario.colaborador.isCoordenador) && (
+          {(ehCoordenador(usuario) || usuario.colaborador.isSupervisor) && (
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <SeletorColaborador
               rotulo="Colaborador"

@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { PaginaNaoEncontrada } from '@/components/layout/PaginaNaoEncontrada';
-import { RotaComSessao, RotaProtegida, SomenteAdministrador } from '@/components/layout/RotaProtegida';
+import { RotaComSessao, RotaProtegida, SomenteCoordenador } from '@/components/layout/RotaProtegida';
 
 // Cada página é carregada sob demanda; o calendário, em especial, é pesado.
 export const router = createBrowserRouter([
@@ -27,8 +27,8 @@ export const router = createBrowserRouter([
           { path: 'solicitacoes/:id/editar', lazy: async () => ({ Component: (await import('@/features/solicitacoes/SolicitacaoFormPage')).SolicitacaoFormPage }) },
           { path: 'calendario', lazy: async () => ({ Component: (await import('@/features/calendario/CalendarioPage')).CalendarioPage }) },
           {
-            // Exclusivo do Administrador.
-            element: <SomenteAdministrador />,
+            // Exclusivo do Coordenador.
+            element: <SomenteCoordenador />,
             children: [
               { path: 'colaboradores', lazy: async () => ({ Component: (await import('@/features/colaboradores/ColaboradoresPage')).ColaboradoresPage }) },
               { path: 'colaboradores/:id', lazy: async () => ({ Component: (await import('@/features/colaboradores/ColaboradorDetalhePage')).ColaboradorDetalhePage }) },

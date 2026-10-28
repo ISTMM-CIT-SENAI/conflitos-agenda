@@ -4,17 +4,22 @@ using ConflitosAgendaApi.Services.Interfaces;
 
 namespace ConflitosAgendaApi.Services;
 
+/// <summary>
+/// Conflito (ver CONTEXT.md): um Período da Solicitação se sobrepõe a um Período de outra
+/// Solicitação, não Recusada, de uma Pessoa Crítica de um Projeto do qual o solicitante participa.
+/// Espelha <c>detectarConflitos</c> do frontend.
+/// </summary>
 public sealed class ConflitoSolicitacaoService : IConflitoSolicitacaoService
 {
     private readonly IProjetoRepository _projetoRepository;
-    private readonly IPeriodoRepository _periodoRepository;
+    private readonly ISolicitacaoRepository _solicitacaoRepository;
 
     public ConflitoSolicitacaoService(
         IProjetoRepository projetoRepository,
-        IPeriodoRepository periodoRepository)
+        ISolicitacaoRepository solicitacaoRepository)
     {
         _projetoRepository = projetoRepository;
-        _periodoRepository = periodoRepository;
+        _solicitacaoRepository = solicitacaoRepository;
     }
 
     public async Task<bool> PossuiConflitoAsync(Solicitacao solicitacao)
@@ -26,48 +31,22 @@ public sealed class ConflitoSolicitacaoService : IConflitoSolicitacaoService
             throw new ArgumentException("A solicitação deve conter pelo menos um período.");
         }
 
-        var colaborador = solicitacao.Colaborador;
-        if (colaborador is null)
-        {
-            throw new ArgumentException("A solicitação deve conter um colaborador válido.");
-        }
+        var colaborador = solicitacao.Colaborador
+            ?? throw new ArgumentException("A solicitação deve conter um colaborador válido.");
 
-        var projetosDoColaborador =
-            await _projetoRepository.ListProjetosByColaboradorIdAsync(colaborador.Id);
-        var projetosOndeEleEcritico =
-            await _projetoRepository.ListProjetosByPessoasCriticasIdAsync(colaborador.Id);
-
-        var idsProjetosDoColaborador = projetosDoColaborador
-            .Select(projeto => projeto.Id)
+        var pessoasCriticas = (await _projetoRepository.ListProjetosByColaboradorIdAsync(colaborador.Id))
+            .SelectMany(projeto => projeto.PessoasCriticas)
+            .Select(pessoa => pessoa.Id)
+            .Where(id => id != colaborador.Id)
             .ToHashSet();
 
-        var projetosRelevantes = projetosOndeEleEcritico
-            .Where(projeto => idsProjetosDoColaborador.Contains(projeto.Id))
-            .ToList();
+        var periodosDasPessoasCriticas = (await _solicitacaoRepository.GetAllAsync())
+            .Where(outra => outra.Id != solicitacao.Id
+                && outra.Status != StatusSolicitacao.Recusada
+                && pessoasCriticas.Contains(outra.Colaborador.Id))
+            .SelectMany(outra => outra.Periodos);
 
-        var idsOutrasPessoasCriticas = projetosRelevantes
-            .SelectMany(projeto => projeto.PessoasCriticas)
-            .Where(pessoa => pessoa.Id != colaborador.Id)
-            .Select(pessoa => pessoa.Id)
-            .Distinct()
-            .ToList();
-
-        foreach (var pessoaCriticaId in idsOutrasPessoasCriticas)
-        {
-            var periodosDaPessoaCritica =
-                await _periodoRepository.ListByColaboradorIdAsync(pessoaCriticaId);
-
-            var existeConflito = solicitacao.Periodos.Any(periodoSolicitacao =>
-                periodosDaPessoaCritica.Any(periodoExistente =>
-                    periodoSolicitacao.DataInicio < periodoExistente.DataFim &&
-                    periodoSolicitacao.DataFim > periodoExistente.DataInicio));
-
-            if (existeConflito)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return periodosDasPessoasCriticas.Any(existente => solicitacao.Periodos.Any(periodo =>
+            periodo.DataInicio < existente.DataFim && periodo.DataFim > existente.DataInicio));
     }
 }

@@ -1,0 +1,272 @@
+{
+  "coordenador": "Hernane do Bom Sucesso Xavier Moreira",
+  "pessoas": [
+    {
+      "nome": "Allison Abiasaf Rocha de Freitas",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Arthur Pereira Ramos Amaral",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Bianca Carolina Berri",
+      "respondeA": "Humberto Alves da Silveira Monteiro",
+      "supervisor": false
+    },
+    {
+      "nome": "Carlos Alexandre de Morais",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Domisley Dutra Silva",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Eduardo de Castro Barbalho",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Elias Gabriel Magalhaes Silva",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Elton Junior Costa",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Emanuele Graciosa Pereira",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Fagner Guilherme Ferreira Coelho",
+      "respondeA": "Humberto Alves da Silveira Monteiro",
+      "supervisor": false
+    },
+    {
+      "nome": "Fernando Alves Franca",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Guilherme Cristiano Fraga",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Hernane do Bom Sucesso Xavier Moreira",
+      "respondeA": null,
+      "supervisor": true
+    },
+    {
+      "nome": "Hilgner Tadeu Amaral de Melo",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Humberto Alves da Silveira Monteiro",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": true
+    },
+    {
+      "nome": "Igor Henrique Xavier de Oliveira",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Joao Gustavo Henrique",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Joao Henrique Rodrigues Costa",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": true
+    },
+    {
+      "nome": "Joao Pedro Almeida Lima",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Joao Victor Pereira Ferreira",
+      "respondeA": "Humberto Alves da Silveira Monteiro",
+      "supervisor": false
+    },
+    {
+      "nome": "Joao Vitor Freitas de Oliveira",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Jonathan Lopes de Souza",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Jorge Luis da Silva Reis",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "João Pedro Rocha Nunes",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Lucas Amaral de Alvarenga Pires",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Lucas Henrique da Silva",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Marcus Vinicius de Paula",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Marisia Maria Costa",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Marlon Lemes da Silva",
+      "respondeA": "Ítalo Magalhaes Dias",
+      "supervisor": false
+    },
+    {
+      "nome": "Mateus Emanuel Silva Pena",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Paulo Henrique Barbosa Amarim",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Pedro Baldini Vitoriano Castro",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Pedro Henrique Pimenta Augusto",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Pedro Ivo de Oliveira Tironi",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Robert Tulio Fernandes Santiago",
+      "respondeA": "Humberto Alves da Silveira Monteiro",
+      "supervisor": false
+    },
+    {
+      "nome": "Rodolfo Vinicius de Melo",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Sharon Tate Zeferino Lourenco",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": false
+    },
+    {
+      "nome": "Vinicius Lopes da Silva",
+      "respondeA": "Joao Henrique Rodrigues Costa",
+      "supervisor": false
+    },
+    {
+      "nome": "Ítalo Magalhaes Dias",
+      "respondeA": "Hernane do Bom Sucesso Xavier Moreira",
+      "supervisor": true
+    }
+  ],
+  "projetos": [
+    {
+      "nome": "220024 - VBA - VEÍCULO INSPETOR DE VIAS",
+      "pessoasCriticas": [
+        "Pedro Ivo de Oliveira Tironi",
+        "Jorge Luis da Silva Reis"
+      ]
+    },
+    {
+      "nome": "220078 - CDT MADA - CENTRO DE DESENVOLVIMENTO DA TECNOLOGIA DE MANUFATURA ADITIVA POR DEPOSIÇÃO A ARCO",
+      "pessoasCriticas": [
+        "Humberto Alves da Silveira Monteiro",
+        "Fagner Guilherme Ferreira Coelho"
+      ]
+    },
+    {
+      "nome": "240008 - DEDICAR - SISTEMA INTELIGENTE PARA CONTROLE DO PROCESSO DE DEPOSIÇÃO COM ARAMES",
+      "pessoasCriticas": [
+        "Humberto Alves da Silveira Monteiro",
+        "Fagner Guilherme Ferreira Coelho"
+      ]
+    },
+    {
+      "nome": "240009 - SOAR - SISTEMA PARA APLICAÇÃO DE REVESTIMENTO ANTIRRESPINGO",
+      "pessoasCriticas": [
+        "Pedro Ivo de Oliveira Tironi",
+        "Domisley Dutra Silva"
+      ]
+    },
+    {
+      "nome": "904824 - FILTRAGEM MAGNÉTICA - SEPARAÇÃO ÁGUA/PETRÓLEO ATRAVÉS DE NANOPARTÍCULAS MAGNÉTICAS",
+      "pessoasCriticas": [
+        "Marcus Vinicius de Paula",
+        "Eduardo de Castro Barbalho"
+      ]
+    },
+    {
+      "nome": "905681 - SPH2 - SISTEMA PILOTO DE PRODUÇÃO E APLICAÇÃO DE H2 EM QUEIMADORES INDUSTRIAIS",
+      "pessoasCriticas": [
+        "Elias Gabriel Magalhaes Silva",
+        "Emanuele Graciosa Pereira"
+      ]
+    },
+    {
+      "nome": "906477- AUTORAIL - SISTEMA FERROVIÁRIO AUTÔNOMO PARA EFICIÊNCIA LOGÍSTICA DE GUSA NA PRODUÇÃO DE AÇO",
+      "pessoasCriticas": [
+        "Joao Henrique Rodrigues Costa",
+        "Hilgner Tadeu Amaral de Melo"
+      ]
+    },
+    {
+      "nome": "900220 - SOPPA SOLUÇÃO PARA PESAGEM AUTOMATIZADA DO BISCOITO PALITÃO",
+      "pessoasCriticas": [
+        "Allison Abiasaf Rocha de Freitas",
+        "Domisley Dutra Silva"
+      ]
+    },
+    {
+      "nome": "900230 - PDC-IA - INTEGRIDADE DE SUPERFÍCIES",
+      "pessoasCriticas": [
+        "Joao Henrique Rodrigues Costa",
+        "Hilgner Tadeu Amaral de Melo"
+      ]
+    },
+    {
+      "nome": "907298 - SEHIDRATE - EQUIPAMENTO PARA DOSAR PROPRIEDADES FÍSICO-QUÍMICAS DA ÁGUA POTÁVEL ENVASADA POR BEBEDOURO COM MÚLTIPLOS GALÕES",
+      "pessoasCriticas": [
+        "Hilgner Tadeu Amaral de Melo",
+        "Vinicius Lopes da Silva"
+      ]
+    }
+  ]
+}

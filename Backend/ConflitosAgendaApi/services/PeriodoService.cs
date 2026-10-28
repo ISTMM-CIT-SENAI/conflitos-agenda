@@ -8,11 +8,19 @@ namespace ConflitosAgendaApi.Services;
 public class PeriodoService : IPeriodoService
 {
     private readonly IPeriodoRepository _periodoRepository;
+    private readonly ISolicitacaoRepository _solicitacaoRepository;
 
-    public PeriodoService(IPeriodoRepository periodoRepository)
+    public PeriodoService(IPeriodoRepository periodoRepository, ISolicitacaoRepository solicitacaoRepository)
     {
         _periodoRepository = periodoRepository;
+        _solicitacaoRepository = solicitacaoRepository;
     }
+
+    /// <summary>A solicitação que usa o período (no banco, um período pertence a no máximo uma).</summary>
+    private async Task<List<Solicitacao>> SolicitacoesComPeriodoAsync(int periodoId) =>
+        (await _solicitacaoRepository.GetAllAsync())
+            .Where(s => s.Periodos.Any(p => p.Id == periodoId))
+            .ToList();
 
     public async Task<Periodo?> GetByIdAsync(int id)
     {
@@ -36,12 +44,7 @@ public class PeriodoService : IPeriodoService
             throw new ArgumentNullException(nameof(periodo));
         }
 
-        var resultadoValidacao = await ValidarPeriodoAsync(periodo.DataInicio, periodo.DataFim);
-
-        if (!resultadoValidacao)
-        {
-            throw new ArgumentException("A data de início deve ser anterior à data de fim.");
-        }
+        RegrasFerias.ValidarPeriodo(periodo.DataInicio, periodo.DataFim);
 
         var novoPeriodo = await _periodoRepository.AddAsync(new Periodo(periodo.DataInicio, periodo.DataFim, periodo.IdColaborador));
 
@@ -54,17 +57,35 @@ public class PeriodoService : IPeriodoService
             throw new ArgumentNullException(nameof(periodo));
         }
 
-        var resultadoValidacao = await ValidarPeriodoAsync(periodo.DataInicio, periodo.DataFim);
-
-        if (!resultadoValidacao)
-        {
-            throw new ArgumentException("A data de início deve ser anterior à data de fim.");
-        }
+        RegrasFerias.ValidarPeriodo(periodo.DataInicio, periodo.DataFim);
 
         var periodoExistente = await _periodoRepository.GetByIdAsync(id);
         if (periodoExistente is null)
         {
             return null;
+        }
+
+        // Uma solicitação decidida não muda; uma em aberto precisa continuar dentro das regras do ano.
+        foreach (var solicitacao in await SolicitacoesComPeriodoAsync(id))
+        {
+            if (solicitacao.EstaDecidida)
+            {
+                throw new ArgumentException(
+                    $"Este período faz parte da solicitação #{solicitacao.Id}, que já foi decidida, e não pode ser alterado.");
+            }
+            if (periodo.IdColaborador > 0 && periodo.IdColaborador != periodoExistente.IdColaborador)
+            {
+                throw new ArgumentException("O colaborador não pode ser trocado: o período já faz parte de uma solicitação.");
+            }
+            var novos = solicitacao.Periodos
+                .Select(p => p.Id == id ? new Periodo(periodo.DataInicio, periodo.DataFim, p.IdColaborador) : p)
+                .ToList();
+            RegrasFerias.ValidarFeriasDoAno(
+                solicitacao.Colaborador.Nome,
+                await _solicitacaoRepository.GetByColaboradorIdAsync(solicitacao.Colaborador.Id),
+                novos,
+                solicitacao.Abono,
+                solicitacao.Id);
         }
 
         periodoExistente.Atualizar(periodo.DataInicio, periodo.DataFim, periodo.IdColaborador);
@@ -80,6 +101,12 @@ public class PeriodoService : IPeriodoService
         {
             throw new ArgumentNullException("O período informado não existe.");
         }
+        var vinculada = (await SolicitacoesComPeriodoAsync(id)).FirstOrDefault();
+        if (vinculada is not null)
+        {
+            throw new ArgumentException(
+                $"Este período faz parte da solicitação #{vinculada.Id}. Remova-o da solicitação antes de excluí-lo.");
+        }
 
         await _periodoRepository.DeleteAsync(id);
         return true;
@@ -88,38 +115,4 @@ public class PeriodoService : IPeriodoService
     {
         return await _periodoRepository.ListByColaboradorIdAsync(colaboradorId);
     }
-    public async Task<bool> ValidarPeriodoAsync(int periodoId)
-    {
-        var periodo = await _periodoRepository.GetByIdAsync(periodoId);
-
-        if (periodo == null)
-        {
-            return false;
-        }
-
-        return true;
-        
-    }
-
-    public async Task<bool> ValidarPeriodoAsync(DateTime dataInicio, DateTime dataFim)
-    {
-        if (dataInicio >= dataFim)
-        {
-            throw new ArgumentException("A data de início deve ser anterior à data de fim.");
-        }
-        
-        if ((dataFim - dataInicio).TotalDays < 10)
-        {
-            throw new ArgumentException("O período deve ter no mínimo 10 dias.");
-        }
-        
-        if ((dataFim - dataInicio).TotalDays > 30)
-        {
-            throw new ArgumentException("O período não pode exceder 30 dias.");
-        }
-
-        return true;
-    }
-
-
 }

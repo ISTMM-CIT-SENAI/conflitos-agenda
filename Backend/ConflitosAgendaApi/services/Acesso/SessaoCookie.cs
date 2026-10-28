@@ -13,8 +13,8 @@ namespace ConflitosAgendaApi.Services.Acesso;
 public static class SessaoCookie
 {
     public const string NomeCookie = "conflitos-agenda.sessao";
-    public const string PoliticaAdministrador = "Administrador";
-    public const string PapelAdministrador = "Administrador";
+    public const string PoliticaCoordenador = "Coordenador";
+    public const string PapelCoordenador = "Coordenador";
     private const string ClaimCarimbo = "carimbo-seguranca";
 
     public static ClaimsPrincipal CriarPrincipal(Usuario usuario)
@@ -25,9 +25,9 @@ public static class SessaoCookie
             new(ClaimTypes.Name, usuario.NomeUsuario),
             new(ClaimCarimbo, usuario.CarimboSeguranca),
         };
-        if (usuario.IsAdministrador)
+        if (usuario.IsCoordenador)
         {
-            claims.Add(new Claim(ClaimTypes.Role, PapelAdministrador));
+            claims.Add(new Claim(ClaimTypes.Role, PapelCoordenador));
         }
         return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }

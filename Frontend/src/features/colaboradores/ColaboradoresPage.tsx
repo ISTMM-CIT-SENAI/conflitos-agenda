@@ -44,8 +44,8 @@ export function ColaboradoresPage() {
   const [promovendo, setPromovendo] = useState<Colaborador | null>(null);
 
   const excluir = useMutacao((id: number) => servicos.colaboradores.excluir(id), { sucesso: 'Colaborador excluído.' });
-  const tornarCoordenador = useMutacao((id: number) => servicos.colaboradores.tornarCoordenador(id), {
-    sucesso: (c) => `${c.nome} agora é coordenador.`,
+  const tornarSupervisor = useMutacao((id: number) => servicos.colaboradores.tornarSupervisor(id), {
+    sucesso: (c) => `${c.nome} agora é supervisor.`,
   });
 
   const linhas = useMemo<Linha[]>(
@@ -91,12 +91,19 @@ export function ColaboradoresPage() {
         ),
     },
     {
-      field: 'isCoordenador',
+      field: 'respondeA',
+      headerName: 'Responde a',
+      flex: 1,
+      minWidth: 170,
+      valueGetter: (_valor, row) => row.respondeA?.nome ?? '—',
+    },
+    {
+      field: 'isSupervisor',
       headerName: 'Perfil',
       width: 150,
       renderCell: ({ row }) =>
-        row.isCoordenador ? (
-          <Chip icon={<VerifiedUserOutlinedIcon />} label="Coordenador" size="small" color="primary" variant="outlined" />
+        row.isSupervisor ? (
+          <Chip icon={<VerifiedUserOutlinedIcon />} label="Supervisor" size="small" color="primary" variant="outlined" />
         ) : (
           'Colaborador'
         ),
@@ -122,10 +129,10 @@ export function ColaboradoresPage() {
           onClick={() => setFormulario({ aberto: true, colaborador: row })}
         />,
         <GridActionsCellItem
-          key="coordenador"
+          key="supervisor"
           icon={<VerifiedUserOutlinedIcon />}
-          label="Tornar coordenador"
-          disabled={row.isCoordenador}
+          label="Tornar supervisor"
+          disabled={row.isSupervisor}
           onClick={() => setPromovendo(row)}
         />,
         <GridActionsCellItem
@@ -213,13 +220,13 @@ export function ColaboradoresPage() {
 
       <ConfirmDialog
         aberto={promovendo !== null}
-        titulo="Tornar coordenador?"
+        titulo="Tornar supervisor?"
         mensagem={`${promovendo?.nome ?? ''} poderá analisar solicitações de outros colaboradores.`}
-        rotuloConfirmar="Tornar coordenador"
-        processando={tornarCoordenador.isPending}
+        rotuloConfirmar="Tornar supervisor"
+        processando={tornarSupervisor.isPending}
         onFechar={() => setPromovendo(null)}
         onConfirmar={() =>
-          promovendo && tornarCoordenador.mutate(promovendo.id, { onSettled: () => setPromovendo(null) })
+          promovendo && tornarSupervisor.mutate(promovendo.id, { onSettled: () => setPromovendo(null) })
         }
       />
     </>

@@ -12,10 +12,7 @@ public class SolicitacaoUpdateDto
     public List<PeriodoReferenciaDto> Periodos { get; set; } = new();
     public StatusSolicitacao Status { get; set; }
     public DateTimeOffset CriadaEm { get; set; }
-    [Required]
-    public ColaboradorReferenciaDto Coordenador { get; set; } = null!;
     public string? Observacao { get; set; }
-    public int TotalDias { get; set; }
     /// <summary>Quando omitido, mantém o valor atual.</summary>
     public bool? Abono { get; set; }
     /// <summary>Quando omitido, mantém o valor atual.</summary>

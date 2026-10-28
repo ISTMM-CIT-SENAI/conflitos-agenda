@@ -49,7 +49,7 @@ public class AuthController : ControllerBase
         return Ok(UsuarioLogadoDto.De(await _usuarioAtual.ObterAsync()));
     }
 
-    /// <summary>Troca a própria senha. Obrigatória no primeiro acesso e após redefinição pelo Administrador.</summary>
+    /// <summary>Troca a própria senha. Obrigatória no primeiro acesso e após redefinição pelo Coordenador.</summary>
     [HttpPost("trocar-senha")]
     public async Task<IActionResult> TrocarSenha(TrocarSenhaDto dto)
     {

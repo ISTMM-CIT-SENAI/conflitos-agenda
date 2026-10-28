@@ -82,14 +82,4 @@ public class ProjetoRepository : IProjetoRepository
 
         return projetos;
     }
-
-    public async Task<IEnumerable<Projeto>> ListProjetosByPessoasCriticasIdAsync(int pessoacriticaId)
-    {
-        var projetos = await _context.Projetos
-            .Include(projeto => projeto.PessoasCriticas)
-            .Where(p => p.PessoasCriticas.Any(c => c.Id == pessoacriticaId))
-            .ToListAsync();
-
-        return projetos;
-    }
 }

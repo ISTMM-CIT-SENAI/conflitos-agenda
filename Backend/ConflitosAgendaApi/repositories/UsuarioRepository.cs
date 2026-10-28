@@ -38,10 +38,9 @@ public class UsuarioRepository : IUsuarioRepository
             .OrderBy(usuario => usuario.NomeUsuarioNormalizado)
             .ToListAsync();
 
-    public Task<bool> ExisteAlgumAsync() => _context.Usuarios.AnyAsync();
 
-    public Task<int> ContarAdministradoresAtivosAsync() =>
-        _context.Usuarios.CountAsync(usuario => usuario.IsAdministrador && usuario.Ativo);
+    public Task<int> ContarCoordenadoresAtivosAsync() =>
+        _context.Usuarios.CountAsync(usuario => usuario.IsCoordenador && usuario.Ativo);
 
     public async Task AddAsync(Usuario usuario)
     {

@@ -34,7 +34,7 @@ export function useSolicitacoes() {
   return useQuery({ queryKey: chaves.solicitacoes, queryFn: () => solicitacoes.listar() });
 }
 
-/** Contas de acesso; só consulta quando `habilitado` (Administrador). */
+/** Contas de acesso; só consulta quando `habilitado` (Coordenador). */
 export function useUsuarios(habilitado = true) {
   const { usuarios } = useServicos();
   return useQuery({ queryKey: chaves.usuarios, queryFn: () => usuarios.listar(), enabled: habilitado });

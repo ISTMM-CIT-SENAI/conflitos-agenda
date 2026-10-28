@@ -10,5 +10,4 @@ public interface IProjetoRepository
     Task<Projeto?> DeleteAsync(int id);
 
     Task<IEnumerable<Projeto>> ListProjetosByColaboradorIdAsync(int colaboradorId);
-    Task<IEnumerable<Projeto>> ListProjetosByPessoasCriticasIdAsync(int pessoacriticaId);
 }

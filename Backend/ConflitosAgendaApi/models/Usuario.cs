@@ -2,8 +2,8 @@ namespace ConflitosAgendaApi.Models;
 
 /// <summary>
 /// Conta de acesso ao sistema. Sempre pertence a exatamente um Colaborador.
-/// O nível de acesso é Administrador quando marcado aqui; caso contrário, é
-/// derivado do Colaborador (Coordenador ou Colaborador).
+/// O nível de acesso é Coordenador quando marcado aqui; caso contrário, é
+/// derivado do Colaborador (Supervisor ou Colaborador).
 /// </summary>
 public sealed class Usuario
 {
@@ -14,13 +14,13 @@ public sealed class Usuario
     {
     }
 
-    public Usuario(string nomeUsuario, string senhaHash, Colaborador colaborador, bool isAdministrador)
+    public Usuario(string nomeUsuario, string senhaHash, Colaborador colaborador, bool isCoordenador)
     {
         NomeUsuario = nomeUsuario;
         NomeUsuarioNormalizado = Normalizar(nomeUsuario);
         SenhaHash = senhaHash;
         Colaborador = colaborador;
-        IsAdministrador = isAdministrador;
+        IsCoordenador = isCoordenador;
         Ativo = true;
         PrecisaTrocarSenha = true;
         RenovarCarimboSeguranca();
@@ -31,7 +31,7 @@ public sealed class Usuario
     /// <summary>Versão em minúsculas, usada para garantir unicidade sem diferenciar maiúsculas.</summary>
     public string NomeUsuarioNormalizado { get; private set; } = string.Empty;
     public string SenhaHash { get; private set; } = string.Empty;
-    public bool IsAdministrador { get; private set; }
+    public bool IsCoordenador { get; private set; }
     public bool Ativo { get; private set; }
     public bool PrecisaTrocarSenha { get; private set; }
     public int TentativasFalhas { get; private set; }
@@ -73,7 +73,7 @@ public sealed class Usuario
         RenovarCarimboSeguranca();
     }
 
-    /// <summary>Senha temporária definida pelo Administrador: precisa ser trocada no próximo login.</summary>
+    /// <summary>Senha temporária definida pelo Coordenador: precisa ser trocada no próximo login.</summary>
     public void RedefinirSenhaTemporaria(string senhaHash)
     {
         SenhaHash = senhaHash;
@@ -89,7 +89,7 @@ public sealed class Usuario
         SenhaHash = senhaHash;
     }
 
-    public void DefinirAdministrador(bool isAdministrador) => IsAdministrador = isAdministrador;
+    public void DefinirCoordenador(bool isCoordenador) => IsCoordenador = isCoordenador;
 
     public void Desativar()
     {

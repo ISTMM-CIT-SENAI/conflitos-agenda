@@ -23,7 +23,7 @@ namespace ConflitosAgendaApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsCoordenador")
+                    b.Property<bool>("IsSupervisor")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Nome")
@@ -31,10 +31,15 @@ namespace ConflitosAgendaApi.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<int?>("RespondeAId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Nome")
                         .IsUnique();
+
+                    b.HasIndex("RespondeAId");
 
                     b.ToTable("Colaboradores");
                 });
@@ -91,9 +96,6 @@ namespace ConflitosAgendaApi.Migrations
                     b.Property<int>("ColaboradorId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("CoordenadorId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTimeOffset>("CriadaEm")
                         .HasColumnType("TEXT");
 
@@ -109,6 +111,9 @@ namespace ConflitosAgendaApi.Migrations
                     b.Property<int>("Status")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("SupervisorId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("TotalDias")
                         .HasColumnType("INTEGER");
 
@@ -119,9 +124,9 @@ namespace ConflitosAgendaApi.Migrations
 
                     b.HasIndex("ColaboradorId");
 
-                    b.HasIndex("CoordenadorId");
-
                     b.HasIndex("DecididaPorId");
+
+                    b.HasIndex("SupervisorId");
 
                     b.ToTable("Solicitacoes");
                 });
@@ -145,7 +150,7 @@ namespace ConflitosAgendaApi.Migrations
                     b.Property<int>("ColaboradorId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsAdministrador")
+                    b.Property<bool>("IsCoordenador")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("NomeUsuario")
@@ -209,6 +214,16 @@ namespace ConflitosAgendaApi.Migrations
                     b.ToTable("ProjetoPessoaCritica");
                 });
 
+            modelBuilder.Entity("ConflitosAgendaApi.Models.Colaborador", b =>
+                {
+                    b.HasOne("ConflitosAgendaApi.Models.Colaborador", "RespondeA")
+                        .WithMany()
+                        .HasForeignKey("RespondeAId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("RespondeA");
+                });
+
             modelBuilder.Entity("ConflitosAgendaApi.Models.Periodo", b =>
                 {
                     b.HasOne("ConflitosAgendaApi.Models.Solicitacao", null)
@@ -224,22 +239,22 @@ namespace ConflitosAgendaApi.Migrations
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.HasOne("ConflitosAgendaApi.Models.Colaborador", "Coordenador")
-                        .WithMany()
-                        .HasForeignKey("CoordenadorId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
-
                     b.HasOne("ConflitosAgendaApi.Models.Usuario", "DecididaPor")
                         .WithMany()
                         .HasForeignKey("DecididaPorId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.HasOne("ConflitosAgendaApi.Models.Colaborador", "Supervisor")
+                        .WithMany()
+                        .HasForeignKey("SupervisorId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
                     b.Navigation("Colaborador");
 
-                    b.Navigation("Coordenador");
-
                     b.Navigation("DecididaPor");
+
+                    b.Navigation("Supervisor");
                 });
 
             modelBuilder.Entity("ConflitosAgendaApi.Models.Usuario", b =>

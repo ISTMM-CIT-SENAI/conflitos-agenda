@@ -3,7 +3,8 @@ import type { Colaborador, Periodo, Projeto, Solicitacao } from '../entities';
 import { StatusSolicitacao } from '../enums/statusSolicitacao';
 import { detectarConflitos } from './conflito';
 import { duracaoEmDias, seSobrepoem, validarIntervalo } from './periodo';
-import { calcularTotalDias, validarRegrasSolicitacao } from './solicitacao';
+import { ehFeriado, iniciaAntesDeDescanso, pascoa } from './feriados';
+import { calcularTotalDias, saldoDoAno, validarRegrasSolicitacao } from './solicitacao';
 import { dataISODeDateTime, dateTimeDeDataISO, formatarData } from '@/lib/datas';
 
 describe('datas', () => {
@@ -23,8 +24,8 @@ describe('Período', () => {
     expect(duracaoEmDias({ inicio: '2026-10-15', retorno: '2026-10-25' })).toBe(10);
   });
 
-  it('aceita de 10 a 30 dias', () => {
-    expect(validarIntervalo({ inicio: '2026-10-15', retorno: '2026-10-25' })).toEqual([]);
+  it('aceita de 5 a 30 dias', () => {
+    expect(validarIntervalo({ inicio: '2026-10-15', retorno: '2026-10-20' })).toEqual([]);
     expect(validarIntervalo({ inicio: '2026-10-01', retorno: '2026-10-31' })).toEqual([]);
   });
 
@@ -33,9 +34,16 @@ describe('Período', () => {
     expect(validarIntervalo({ inicio: '2026-10-15', retorno: '2026-10-10' })).toHaveLength(1);
   });
 
-  it('rejeita fora do intervalo de 10 a 30 dias', () => {
-    expect(validarIntervalo({ inicio: '2026-10-15', retorno: '2026-10-24' })[0]).toMatch(/mínimo/);
+  it('rejeita fora do intervalo de 5 a 30 dias', () => {
+    expect(validarIntervalo({ inicio: '2026-10-15', retorno: '2026-10-19' })[0]).toMatch(/mínimo/);
     expect(validarIntervalo({ inicio: '2026-10-01', retorno: '2026-11-01' })[0]).toMatch(/máximo/);
+  });
+
+  it('não começa nos 2 dias antes de domingo ou feriado (CLT, art. 134, §3º)', () => {
+    expect(validarIntervalo({ inicio: '2026-10-30', retorno: '2026-11-13' })[0]).toMatch(/domingo ou feriado/); // sexta
+    expect(validarIntervalo({ inicio: '2026-10-31', retorno: '2026-11-14' })[0]).toMatch(/domingo ou feriado/); // sábado
+    expect(validarIntervalo({ inicio: '2026-11-18', retorno: '2026-12-02' })[0]).toMatch(/domingo ou feriado/); // 20/11 em 2 dias
+    expect(validarIntervalo({ inicio: '2026-10-26', retorno: '2026-11-09' })).toEqual([]); // segunda
   });
 
   it('não considera sobreposição entre períodos adjacentes', () => {
@@ -46,17 +54,66 @@ describe('Período', () => {
   });
 });
 
-describe('regras da Solicitação', () => {
-  it('exige de 1 a 3 períodos', () => {
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 0, totalDias: 0, abono: false })).toHaveLength(1);
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 3, totalDias: 45, abono: false })).toEqual([]);
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 4, totalDias: 60, abono: false })).toHaveLength(1);
+describe('feriados (nacionais e de Belo Horizonte)', () => {
+  it('calcula a Páscoa', () => {
+    expect(pascoa(2026)).toBe('2026-04-05');
+    expect(pascoa(2027)).toBe('2027-03-28');
   });
 
-  it('limita abono a 2 períodos e 20 dias', () => {
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 2, totalDias: 20, abono: true })).toEqual([]);
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 3, totalDias: 20, abono: true })).toHaveLength(1);
-    expect(validarRegrasSolicitacao({ quantidadePeriodos: 2, totalDias: 21, abono: true })).toHaveLength(1);
+  it('inclui os municipais de BH e não o Carnaval', () => {
+    expect(ehFeriado('2026-11-20')).toBe(true); // Consciência Negra
+    expect(ehFeriado('2026-08-15')).toBe(true); // Assunção
+    expect(ehFeriado('2026-12-08')).toBe(true); // Imaculada Conceição
+    expect(ehFeriado('2026-04-03')).toBe(true); // Sexta-feira da Paixão
+    expect(ehFeriado('2026-06-04')).toBe(true); // Corpus Christi
+    expect(ehFeriado('2026-02-17')).toBe(false); // Carnaval
+    expect(iniciaAntesDeDescanso('2026-10-26')).toBe(false);
+  });
+});
+
+describe('regras da Solicitação (CLT)', () => {
+  const periodo = (id: number, inicio: string, dias: number): Periodo => ({
+    id,
+    idColaborador: 1,
+    dataInicio: `${inicio}T00:00:00`,
+    dataFim: `${new Date(Date.parse(inicio) + dias * 86400000).toISOString().slice(0, 10)}T00:00:00`,
+  });
+  const ja = (id: number, periodos: Periodo[], abono = false, status: StatusSolicitacao = StatusSolicitacao.EmAnalise) =>
+    ({ id, colaborador: { id: 1 }, status, abono, periodos }) as Solicitacao;
+  const saldo = (pedido: Periodo[], anteriores: Solicitacao[] = [], abono = false) => saldoDoAno(anteriores, 1, pedido, abono)!;
+
+  it('cada pedido tem de 1 a 3 períodos de pelo menos 5 dias', () => {
+    expect(validarRegrasSolicitacao({ duracoes: [15] })).toEqual([]);
+    expect(validarRegrasSolicitacao({ duracoes: [] })).toHaveLength(1);
+    expect(validarRegrasSolicitacao({ duracoes: [14, 6, 5, 5] })[0].mensagem).toMatch(/1 a 3 períodos/);
+    expect(validarRegrasSolicitacao({ duracoes: [10, 4] })[0].mensagem).toMatch(/mínimo 5 dias/);
+  });
+
+  it('aceita pedir as férias em partes e mostra o saldo do ano', () => {
+    const primeiro = saldo([periodo(1, '2027-01-04', 15)]);
+    expect(primeiro).toMatchObject({ ano: 2027, diasAnteriores: 0, diasDoPedido: 15, restam: 15, limite: 30, violacoes: [] });
+    expect(saldo([periodo(2, '2027-08-02', 15)], [ja(9, [periodo(1, '2027-01-04', 15)])])).toMatchObject({ diasAnteriores: 15, restam: 0, violacoes: [] });
+  });
+
+  it('no ano, no máximo 30 dias e 3 períodos; recusadas e outros anos não contam', () => {
+    const anterior = ja(9, [periodo(1, '2027-01-04', 20)]);
+    expect(saldo([periodo(2, '2027-08-02', 15)], [anterior]).violacoes[0].mensagem).toMatch(/Seriam 35 dias de férias em 2027/);
+    expect(saldo([periodo(2, '2028-01-03', 30)], [anterior]).violacoes).toEqual([]);
+    expect(saldo([periodo(2, '2027-08-02', 30)], [{ ...anterior, status: StatusSolicitacao.Recusada }]).violacoes).toEqual([]);
+    const tres = ja(9, [periodo(1, '2027-01-04', 14), periodo(2, '2027-03-01', 5), periodo(3, '2027-05-03', 5)]);
+    expect(saldo([periodo(4, '2027-08-02', 5)], [tres]).violacoes[0].mensagem).toMatch(/4 períodos/);
+  });
+
+  it('precisa sobrar espaço para um período de 14 dias', () => {
+    expect(saldo([periodo(1, '2027-03-01', 10)])).toMatchObject({ faltaPeriodoPrincipal: true, violacoes: [] });
+    expect(saldo([periodo(2, '2027-05-03', 10)], [ja(9, [periodo(1, '2027-03-01', 10)])]).violacoes[0].mensagem).toMatch(/14 dias/);
+  });
+
+  it('abono em qualquer pedido do ano baixa o limite para 20 dias', () => {
+    const anterior = ja(9, [periodo(1, '2027-01-04', 14)]);
+    expect(saldo([periodo(2, '2027-07-05', 6)], [anterior], true).violacoes).toEqual([]);
+    expect(saldo([periodo(2, '2027-07-05', 10)], [anterior], true).violacoes[0]).toMatchObject({ campo: 'abono' });
+    expect(saldo([periodo(2, '2027-07-05', 10)], [{ ...anterior, abono: true }]).limite).toBe(20);
   });
 
   it('calcula o Total de Dias a partir dos períodos', () => {
@@ -69,8 +126,8 @@ describe('regras da Solicitação', () => {
 });
 
 describe('detecção de Conflito', () => {
-  const pessoa = (id: number): Colaborador => ({ id, nome: `P${id}`, isCoordenador: false });
-  const coordenador = { ...pessoa(99), isCoordenador: true };
+  const pessoa = (id: number): Colaborador => ({ id, nome: `P${id}`, isSupervisor: false });
+  const supervisor = { ...pessoa(99), isSupervisor: true };
   const periodo = (id: number, idColaborador: number, inicio: string, retorno: string): Periodo => ({
     id,
     idColaborador,
@@ -80,7 +137,7 @@ describe('detecção de Conflito', () => {
   const solicitacao = (id: number, colaboradorId: number, periodos: Periodo[], status: StatusSolicitacao = StatusSolicitacao.EmAnalise): Solicitacao => ({
     id,
     colaborador: pessoa(colaboradorId),
-    coordenador,
+    supervisor,
     periodos,
     status,
     criadaEm: '2026-10-01T10:00:00-03:00',

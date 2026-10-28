@@ -9,7 +9,7 @@ public sealed class Solicitacao
         List<Periodo> periodos,
         StatusSolicitacao status,
         DateTimeOffset criadaEm,
-        Colaborador coordenador,
+        Colaborador supervisor,
         string? observacao = null,
         bool abono = false,
         bool isPessoaCritica = false,
@@ -18,7 +18,7 @@ public sealed class Solicitacao
     {
         this.Colaborador = colaborador;
         this.Periodos = periodos;
-        this.Coordenador = coordenador;
+        this.Supervisor = supervisor;
         this.Status = status;
         this.CriadaEm = criadaEm;
         this.Observacao = observacao;
@@ -31,12 +31,12 @@ public sealed class Solicitacao
     public List<Periodo> Periodos { get; private set; } = new();
     public StatusSolicitacao Status { get; private set; } = StatusSolicitacao.Em_Analise;
     public DateTimeOffset CriadaEm { get; private set; } = DateTimeOffset.UtcNow;
-    public Colaborador Coordenador { get; private set; } = null!;
+    public Colaborador Supervisor { get; private set; } = null!;
     public int TotalDias { get; private set; }
     public string? Observacao { get; private set; } 
     public bool Abono { get; private set; } = false;
     public bool isPessoaCritica { get; private set; } = false;
-    /// <summary>Usuário que aprovou ou recusou; pode ser o Coordenador escolhido ou um Administrador.</summary>
+    /// <summary>Usuário que aprovou ou recusou; pode ser o Supervisor encaminhado ou um Coordenador.</summary>
     public int? DecididaPorId { get; private set; }
     public Usuario? DecididaPor { get; private set; }
     public DateTimeOffset? DecididaEm { get; private set; }
@@ -48,27 +48,6 @@ public sealed class Solicitacao
         DecididaPor = usuario;
         DecididaPorId = usuario.Id;
         DecididaEm = quando;
-    }
-
-    public bool ValidarAbono(IEnumerable<Periodo>? periodos = null)
-    {
-        var quantidadePeriodos = (periodos ?? Periodos).Count();
-
-        if (this.Abono && quantidadePeriodos > 2)
-        {
-            return false;
-        }
-        if(this.Abono && this.TotalDias > 20)
-        {
-            return false;
-        }
-        return true;
-    }
-
-    public bool ValidarNumPeriodos(IEnumerable<Periodo>? periodos = null)
-    {
-        var quantidadePeriodos = (periodos ?? Periodos).Count();
-        return quantidadePeriodos is >= 1 and <= 3;
     }
 
     public void Aprovar()
@@ -83,21 +62,17 @@ public sealed class Solicitacao
     }
 
     public void Atualizar(
-        Colaborador colaborador,
         List<Periodo> periodos,
-        Colaborador coordenador,
         StatusSolicitacao status,
         string? observacao,
         int? totalDias = null,
         bool? abono = null,
         bool? pessoaCritica = null)
     {
-        Colaborador = colaborador;
         // Altera a lista existente para o EF desvincular os períodos removidos.
         var novosPeriodos = periodos.ToList();
         Periodos.Clear();
         Periodos.AddRange(novosPeriodos);
-        Coordenador = coordenador;
         Status = status;
         Observacao = observacao;
         TotalDias = totalDias ?? TotalDias;

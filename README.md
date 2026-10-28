@@ -1,6 +1,6 @@
 # Conflitos de Agenda
 
-Sistema para organizar os períodos de ausência dos colaboradores e analisar as solicitações, com detecção de conflito quando pessoas críticas de um mesmo projeto se ausentam ao mesmo tempo. O acesso é feito com usuário e senha, em três níveis: Administrador, Coordenador e Colaborador.
+Sistema para organizar os períodos de ausência dos colaboradores e analisar as solicitações, com detecção de conflito quando pessoas críticas de um mesmo projeto se ausentam ao mesmo tempo. O acesso é feito com usuário e senha, em três níveis: Coordenador, Supervisor e Colaborador. As solicitações seguem as regras de férias da CLT e vão automaticamente para o supervisor de cada pessoa.
 
 | Pasta | Conteúdo |
 |---|---|
@@ -25,9 +25,9 @@ npm install
 npm run dev:api
 ```
 
-No primeiro acesso, entre com `admin` / `admin` (configuração de desenvolvimento) e defina uma nova senha. A partir daí, o administrador cadastra os colaboradores e cria o acesso de cada um. Em produção, o primeiro administrador vem das variáveis `Admin__Usuario`, `Admin__SenhaInicial` e `Admin__NomeCompleto` (ver `Backend/README.MD`).
+Na primeira execução, com o banco vazio, a API cadastra as pessoas, a hierarquia e os projetos do ISTMM, com um usuário para cada pessoa, e grava as senhas temporárias em `Backend/ConflitosAgendaApi/credenciais-iniciais.csv` (fora do git). Entregue cada senha individualmente e apague o arquivo; no primeiro login, cada pessoa define a própria senha. Detalhes em `Backend/README.MD`.
 
-Para usar só o frontend, com dados de demonstração salvos no navegador, rode `npm run dev` no lugar de `npm run dev:api`. A tela de login mostra os usuários fictícios (`admin`, `coordenador` e `colaborador`, senha `demo123`).
+Para usar só o frontend, com dados de demonstração salvos no navegador, rode `npm run dev` no lugar de `npm run dev:api`. A tela de login mostra os usuários fictícios (`coordenador`, `supervisor` e `colaborador`, senha `demo123`). A versão de demonstração também está publicada em https://conflitos-agenda.vercel.app.
 
 ## Testes
 

@@ -30,7 +30,7 @@ import { useState, type ReactElement } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useServicos } from '@/app/providers/useServicos';
 import { useUsuarioLogado, useSessao } from '@/app/providers/useSessao';
-import { ROTULO_NIVEL, ehAdministrador } from '@/domain/acesso';
+import { ROTULO_NIVEL, ehCoordenador } from '@/domain/acesso';
 import { ConfirmDialog } from '@/components/common/ConfirmDialog';
 import { useMutacao } from '@/hooks/useDados';
 
@@ -40,17 +40,17 @@ interface ItemMenu {
   rotulo: string;
   caminho: string;
   icone: ReactElement;
-  somenteAdministrador?: boolean;
+  somenteCoordenador?: boolean;
 }
 
 const ITENS_MENU: ItemMenu[] = [
   { rotulo: 'Dashboard', caminho: '/', icone: <DashboardOutlinedIcon /> },
-  { rotulo: 'Colaboradores', caminho: '/colaboradores', icone: <PeopleAltOutlinedIcon />, somenteAdministrador: true },
-  { rotulo: 'Projetos', caminho: '/projetos', icone: <FolderOutlinedIcon />, somenteAdministrador: true },
+  { rotulo: 'Colaboradores', caminho: '/colaboradores', icone: <PeopleAltOutlinedIcon />, somenteCoordenador: true },
+  { rotulo: 'Projetos', caminho: '/projetos', icone: <FolderOutlinedIcon />, somenteCoordenador: true },
   { rotulo: 'Períodos', caminho: '/periodos', icone: <DateRangeOutlinedIcon /> },
   { rotulo: 'Solicitações', caminho: '/solicitacoes', icone: <AssignmentOutlinedIcon /> },
   { rotulo: 'Calendário', caminho: '/calendario', icone: <CalendarMonthOutlinedIcon /> },
-  { rotulo: 'Usuários', caminho: '/usuarios', icone: <AdminPanelSettingsOutlinedIcon />, somenteAdministrador: true },
+  { rotulo: 'Usuários', caminho: '/usuarios', icone: <AdminPanelSettingsOutlinedIcon />, somenteCoordenador: true },
 ];
 
 function ConteudoMenu({ onNavegar }: { onNavegar: () => void }) {
@@ -58,7 +58,7 @@ function ConteudoMenu({ onNavegar }: { onNavegar: () => void }) {
   const { sair } = useSessao();
   const usuario = useUsuarioLogado();
   const { pathname } = useLocation();
-  const itens = ITENS_MENU.filter((item) => !item.somenteAdministrador || ehAdministrador(usuario));
+  const itens = ITENS_MENU.filter((item) => !item.somenteCoordenador || ehCoordenador(usuario));
   const [confirmandoRestauracao, setConfirmandoRestauracao] = useState(false);
   const restaurar = useMutacao(async () => demonstracao?.restaurarDados(), {
     sucesso: 'Dados de demonstração restaurados.',

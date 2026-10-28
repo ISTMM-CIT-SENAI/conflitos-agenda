@@ -18,7 +18,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
         var solicitacao = await _context.Solicitacoes
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
-            .Include(s => s.Coordenador)
+            .Include(s => s.Supervisor)
             .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .FirstOrDefaultAsync(s => s.Id == id);
         return solicitacao;
@@ -29,7 +29,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
         var list = await _context.Solicitacoes
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
-            .Include(s => s.Coordenador)
+            .Include(s => s.Supervisor)
             .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .ToListAsync();
         
@@ -41,7 +41,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
         var list = await _context.Solicitacoes
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
-            .Include(s => s.Coordenador)
+            .Include(s => s.Supervisor)
             .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .Where(s => s.Colaborador.Id == colaboradorId)
             .ToListAsync();
@@ -54,7 +54,7 @@ public class SolicitacaoRepository : ISolicitacaoRepository
         var list = await _context.Solicitacoes
             .Include(s => s.Colaborador)
             .Include(s => s.Periodos)
-            .Include(s => s.Coordenador)
+            .Include(s => s.Supervisor)
             .Include(s => s.DecididaPor).ThenInclude(u => u!.Colaborador)
             .Where(s => s.Status == status)
             .ToListAsync();
@@ -64,27 +64,14 @@ public class SolicitacaoRepository : ISolicitacaoRepository
 
     public async Task AddAsync(Solicitacao solicitacao)
     {
-        try{
-            await _context.Solicitacoes.AddAsync(solicitacao);
-            await _context.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Erro ao adicionar solicitação: {ex.Message}");
-        }
+        await _context.Solicitacoes.AddAsync(solicitacao);
+        await _context.SaveChangesAsync();
     }
 
     public async Task UpdateAsync(Solicitacao solicitacao)
     {
-        try
-        {
-            _context.Solicitacoes.Update(solicitacao);
-            await _context.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Erro ao atualizar solicitação: {ex.Message}");
-        }
+        _context.Solicitacoes.Update(solicitacao);
+        await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
@@ -98,15 +85,8 @@ public class SolicitacaoRepository : ISolicitacaoRepository
         {
             throw new KeyNotFoundException($"Solicitação com ID {id} não encontrada.");
         }
-        try
-        {
-            _context.Solicitacoes.Remove(solicitacao);
-            await _context.SaveChangesAsync();
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Erro ao deletar a solicitação com ID {id}: {ex.Message}", ex);
-        }
+        _context.Solicitacoes.Remove(solicitacao);
+        await _context.SaveChangesAsync();
     }
     
 }

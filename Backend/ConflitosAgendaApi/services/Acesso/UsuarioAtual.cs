@@ -8,20 +8,20 @@ public sealed record UsuarioAtual(
     string NomeUsuario,
     int ColaboradorId,
     string NomeColaborador,
-    bool IsAdministrador,
     bool IsCoordenador,
+    bool IsSupervisor,
     bool PrecisaTrocarSenha)
 {
-    public NivelAcesso Nivel => IsAdministrador
-        ? NivelAcesso.Administrador
-        : IsCoordenador ? NivelAcesso.Coordenador : NivelAcesso.Colaborador;
+    public NivelAcesso Nivel => IsCoordenador
+        ? NivelAcesso.Coordenador
+        : IsSupervisor ? NivelAcesso.Supervisor : NivelAcesso.Colaborador;
 
     public static UsuarioAtual De(Usuario usuario) => new(
         usuario.Id,
         usuario.NomeUsuario,
         usuario.ColaboradorId,
         usuario.Colaborador.Nome,
-        usuario.IsAdministrador,
-        usuario.Colaborador.IsCoordenador,
+        usuario.IsCoordenador,
+        usuario.Colaborador.IsSupervisor,
         usuario.PrecisaTrocarSenha);
 }

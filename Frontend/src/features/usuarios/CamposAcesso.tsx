@@ -3,7 +3,7 @@ import { TAMANHO_MINIMO_SENHA } from '@/domain/acesso';
 import type { ErrosAcesso, ValoresAcesso } from './valoresAcesso';
 
 
-/** Nome de usuário, senha temporária e marcação de Administrador, usados ao criar um acesso. */
+/** Nome de usuário, senha temporária e marcação de Coordenador, usados ao criar um acesso. */
 export function CamposAcesso({
   valores,
   erros,
@@ -42,12 +42,12 @@ export function CamposAcesso({
         <FormControlLabel
           control={
             <Checkbox
-              checked={valores.isAdministrador}
-              onChange={(e) => onChange({ ...valores, isAdministrador: e.target.checked })}
+              checked={valores.isCoordenador}
+              onChange={(e) => onChange({ ...valores, isCoordenador: e.target.checked })}
               disabled={desabilitado}
             />
           }
-          label="Administrador"
+          label="Coordenador"
         />
         <FormHelperText sx={{ mt: -0.5 }}>
           Acesso total: cadastros, usuários e decisão de qualquer solicitação, exceto a própria.

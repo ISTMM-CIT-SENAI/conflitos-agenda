@@ -11,8 +11,8 @@ public interface IVisibilidadeService
 }
 
 /// <summary>
-/// O Administrador vê tudo. Os demais veem as próprias solicitações (e as atribuídas,
-/// se coordenadores) e, no calendário, as ausências planejadas dos colegas dos mesmos
+/// O Coordenador vê tudo. Os demais veem as próprias solicitações (e as atribuídas,
+/// se supervisores) e, no calendário, as ausências planejadas dos colegas dos mesmos
 /// projetos: apenas os períodos, sem os detalhes da solicitação.
 /// </summary>
 public sealed class VisibilidadeService : IVisibilidadeService
@@ -28,7 +28,7 @@ public sealed class VisibilidadeService : IVisibilidadeService
 
     public async Task<IEnumerable<Periodo>> FiltrarPeriodosAsync(UsuarioAtual usuario, IEnumerable<Periodo> periodos)
     {
-        if (usuario.IsAdministrador)
+        if (usuario.IsCoordenador)
         {
             return periodos;
         }
@@ -54,5 +54,5 @@ public sealed class VisibilidadeService : IVisibilidadeService
     public IEnumerable<SolicitacaoResponseDto> FiltrarSolicitacoes(
         UsuarioAtual usuario,
         IEnumerable<SolicitacaoResponseDto> solicitacoes) =>
-        solicitacoes.Where(s => RegrasAcesso.PodeVerSolicitacao(usuario, s.Colaborador.Id, s.Coordenador.Id));
+        solicitacoes.Where(s => RegrasAcesso.PodeVerSolicitacao(usuario, s.Colaborador.Id, s.Supervisor.Id));
 }

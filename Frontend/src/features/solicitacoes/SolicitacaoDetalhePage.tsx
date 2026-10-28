@@ -31,7 +31,7 @@ import { StatusSolicitacao, isStatusFinal } from '@/domain/enums/statusSolicitac
 import { useUsuarioLogado } from '@/app/providers/useSessao';
 import { LinkColaborador } from '@/components/common/LinkColaborador';
 import {
-  ehAdministrador,
+  ehCoordenador,
   podeDecidir,
   podeEditarSolicitacao,
   podeExcluirSolicitacao,
@@ -65,7 +65,7 @@ export function SolicitacaoDetalhePage() {
   const servicos = useServicos();
   const feedback = useFeedback();
   const usuario = useUsuarioLogado();
-  const admin = ehAdministrador(usuario);
+  const admin = ehCoordenador(usuario);
 
   const consulta = useSolicitacao(id);
   const todas = useSolicitacoes();
@@ -118,7 +118,7 @@ export function SolicitacaoDetalhePage() {
                     <span>
                       · {solicitacao.status === StatusSolicitacao.Aprovada ? 'Aprovada' : 'Recusada'} por{' '}
                       <strong>{solicitacao.decididaPor.nomeColaborador}</strong>
-                      {solicitacao.decididaPor.isAdministrador ? ' (administrador)' : ''} em{' '}
+                      {solicitacao.decididaPor.isCoordenador ? ' (coordenador)' : ''} em{' '}
                       {formatarDataHora(solicitacao.decididaEm)}
                     </span>
                   )}
@@ -171,8 +171,8 @@ export function SolicitacaoDetalhePage() {
                       </Campo>
                     </Grid>
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <Campo rotulo="Coordenador">
-                        <LinkColaborador id={solicitacao.coordenador.id} nome={solicitacao.coordenador.nome} underline="always" />
+                      <Campo rotulo="Supervisor">
+                        <LinkColaborador id={solicitacao.supervisor.id} nome={solicitacao.supervisor.nome} underline="always" />
                       </Campo>
                     </Grid>
                     <Grid size={{ xs: 6, sm: 4 }}>
@@ -273,7 +273,7 @@ export function SolicitacaoDetalhePage() {
                       <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
                         {isStatusFinal(solicitacao.status)
                           ? 'Solicitações aprovadas ou recusadas não podem ser editadas.'
-                          : 'Somente o próprio colaborador ou um administrador pode editar esta solicitação.'}
+                          : 'Somente o próprio colaborador ou o coordenador pode editar esta solicitação.'}
                       </Typography>
                     )}
                   </Paper>

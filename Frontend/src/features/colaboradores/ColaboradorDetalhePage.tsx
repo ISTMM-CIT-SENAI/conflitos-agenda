@@ -58,8 +58,8 @@ export function ColaboradorDetalhePage() {
   const [editando, setEditando] = useState(false);
   const [novoPeriodo, setNovoPeriodo] = useState(false);
   const [promovendo, setPromovendo] = useState(false);
-  const tornarCoordenador = useMutacao(() => servicos.colaboradores.tornarCoordenador(id), {
-    sucesso: (c) => `${c.nome} agora é coordenador.`,
+  const tornarSupervisor = useMutacao(() => servicos.colaboradores.tornarSupervisor(id), {
+    sucesso: (c) => `${c.nome} agora é supervisor.`,
   });
 
   const colaborador = colaboradores.data?.find((c) => c.id === id) ?? null;
@@ -72,7 +72,7 @@ export function ColaboradorDetalhePage() {
       solicitacoes: (solicitacoes.data ?? [])
         .filter((s) => s.colaborador.id === id)
         .sort((a, b) => b.criadaEm.localeCompare(a.criadaEm)),
-      analisando: (solicitacoes.data ?? []).filter((s) => s.coordenador.id === id),
+      analisando: (solicitacoes.data ?? []).filter((s) => s.supervisor.id === id),
       projetos: (projetos.data ?? []).filter((p) => p.colaboradores.some((c) => c.id === id)),
     }),
     [periodos.data, solicitacoes.data, projetos.data, id],
@@ -100,21 +100,22 @@ export function ColaboradorDetalhePage() {
               titulo={colaborador.nome}
               subtitulo={
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-                  {colaborador.isCoordenador && (
-                    <Chip icon={<VerifiedUserOutlinedIcon />} label="Coordenador" size="small" color="primary" variant="outlined" />
+                  {colaborador.isSupervisor && (
+                    <Chip icon={<VerifiedUserOutlinedIcon />} label="Supervisor" size="small" color="primary" variant="outlined" />
                   )}
                   <span>
                     {conta
                       ? `Acesso: ${conta.nomeUsuario}${conta.ativo ? '' : ' (desativado)'}`
                       : 'Sem acesso ao sistema'}
                   </span>
+                  {colaborador.respondeA && <span>· Responde a {colaborador.respondeA.nome}</span>}
                 </Stack>
               }
               acoes={
                 <>
-                  {!colaborador.isCoordenador && (
+                  {!colaborador.isSupervisor && (
                     <Button startIcon={<VerifiedUserOutlinedIcon />} onClick={() => setPromovendo(true)}>
-                      Tornar coordenador
+                      Tornar supervisor
                     </Button>
                   )}
                   <Button startIcon={<EditOutlinedIcon />} variant="outlined" onClick={() => setEditando(true)}>
@@ -191,7 +192,7 @@ export function ColaboradorDetalhePage() {
                                 Solicitação #{s.id} · {s.totalDias} dias{s.abono ? ' · abono' : ''}
                               </Link>
                             }
-                            secondary={`Criada em ${formatarDataHora(s.criadaEm)} · coordenador ${s.coordenador.nome}`}
+                            secondary={`Criada em ${formatarDataHora(s.criadaEm)} · supervisor ${s.supervisor.nome}`}
                           />
                         </ListItem>
                       ))}
@@ -222,7 +223,7 @@ export function ColaboradorDetalhePage() {
                 </Secao>
               </Grid>
 
-              {colaborador.isCoordenador && (
+              {colaborador.isSupervisor && (
                 <Grid size={{ xs: 12, lg: 6 }}>
                   <Secao titulo="Solicitações sob sua análise">
                     {seus.analisando.length === 0 ? (
@@ -251,12 +252,12 @@ export function ColaboradorDetalhePage() {
             <PeriodoFormDialog aberto={novoPeriodo} colaboradorIdInicial={id} onFechar={() => setNovoPeriodo(false)} />
             <ConfirmDialog
               aberto={promovendo}
-              titulo="Tornar coordenador?"
+              titulo="Tornar supervisor?"
               mensagem={`${colaborador.nome} poderá analisar solicitações de outros colaboradores.`}
-              rotuloConfirmar="Tornar coordenador"
-              processando={tornarCoordenador.isPending}
+              rotuloConfirmar="Tornar supervisor"
+              processando={tornarSupervisor.isPending}
               onFechar={() => setPromovendo(false)}
-              onConfirmar={() => tornarCoordenador.mutate(undefined, { onSettled: () => setPromovendo(false) })}
+              onConfirmar={() => tornarSupervisor.mutate(undefined, { onSettled: () => setPromovendo(false) })}
             />
           </>
         )}

@@ -11,7 +11,7 @@ public interface IUsuarioAtualAccessor
 
 /// <summary>
 /// Carrega o Usuário da sessão a partir do banco uma vez por requisição. O nível de acesso
-/// vem sempre do estado atual (ex.: alguém que acabou de virar coordenador), não do cookie.
+/// vem sempre do estado atual (ex.: alguém que acabou de virar supervisor), não do cookie.
 /// </summary>
 public sealed class UsuarioAtualAccessor : IUsuarioAtualAccessor
 {

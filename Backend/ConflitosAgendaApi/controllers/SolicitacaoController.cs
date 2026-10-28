@@ -40,7 +40,7 @@ public class SolicitacaoController : ControllerBase
         var usuario = await _usuarioAtual.ObterAsync();
         var solicitacao = await _solicitacaoService.GetByIdAsync(id);
         var visivel = solicitacao is not null
-            && RegrasAcesso.PodeVerSolicitacao(usuario, solicitacao.Colaborador.Id, solicitacao.Coordenador.Id);
+            && RegrasAcesso.PodeVerSolicitacao(usuario, solicitacao.Colaborador.Id, solicitacao.Supervisor.Id);
         return (usuario, visivel ? solicitacao : null);
     }
 
@@ -86,12 +86,6 @@ public class SolicitacaoController : ControllerBase
         return Ok(solicitacoes);
     }
 
-    [HttpGet("projeto/{projetoId}")]
-    public Task<IActionResult> GetByPeriodoLegacy(int projetoId)
-    {
-        return GetByPeriodoId(projetoId);
-    }
-
     [HttpGet("status/{status}")]
     public async Task<IActionResult> GetByStatus(StatusSolicitacao status)
     {
@@ -119,7 +113,7 @@ public class SolicitacaoController : ControllerBase
 
     /// <summary>
     /// Edita a Solicitação ou muda o status. Aprovar e recusar (status 2 e 3) cabem ao
-    /// Coordenador escolhido ou a um Administrador, nunca ao solicitante; o Coordenador
+    /// Supervisor encaminhado ou a um Coordenador, nunca ao solicitante; o Supervisor
     /// que não é dono só pode mudar o status, sem alterar o conteúdo.
     /// </summary>
     [HttpPut("{id}")]
@@ -132,25 +126,21 @@ public class SolicitacaoController : ControllerBase
         }
 
         var ehDecisao = dto.Status is StatusSolicitacao.Aprovada or StatusSolicitacao.Recusada;
-        if (ehDecisao && !RegrasAcesso.PodeDecidir(usuario, atual.Colaborador.Id, atual.Coordenador.Id))
+        if (ehDecisao && !RegrasAcesso.PodeDecidir(usuario, atual.Colaborador.Id, atual.Supervisor.Id))
         {
             throw new AcessoNegadoException(
                 RegrasAcesso.EhDono(usuario, atual.Colaborador.Id)
                     ? "Você não pode aprovar ou recusar a sua própria solicitação."
-                    : "Somente o coordenador escolhido ou um administrador pode aprovar ou recusar esta solicitação.");
+                    : "Somente o supervisor encaminhado ou o coordenador pode aprovar ou recusar esta solicitação.");
         }
 
         if (!RegrasAcesso.PodeEditarSolicitacao(usuario, atual.Colaborador.Id))
         {
-            // Coordenador escolhido: pode mudar o status (validar, aprovar, recusar), não o conteúdo.
-            if (!AlteraSomenteStatus(atual, dto))
+            // Supervisor encaminhado: pode mudar o status (validar, aprovar, recusar), não o conteúdo.
+            if (!RegrasAcesso.AlteraSomenteStatus(atual, dto))
             {
                 throw new AcessoNegadoException("Você só pode alterar o status desta solicitação.");
             }
-        }
-        else if (!usuario.IsAdministrador && dto.Colaborador?.Id != atual.Colaborador.Id)
-        {
-            throw new AcessoNegadoException("Você não pode transferir a solicitação para outro colaborador.");
         }
 
         var decisor = ehDecisao ? await _usuarioRepository.GetByIdAsync(usuario.UsuarioId) : null;
@@ -174,7 +164,7 @@ public class SolicitacaoController : ControllerBase
         if (!RegrasAcesso.PodeExcluirSolicitacao(usuario, solicitacao.Colaborador.Id, solicitacao.Status))
         {
             throw new AcessoNegadoException(
-                "Somente o próprio colaborador, antes da decisão, ou um administrador pode excluir esta solicitação.");
+                "Somente o próprio colaborador, antes da decisão, ou um coordenador pode excluir esta solicitação.");
         }
 
         await _solicitacaoService.DeleteAsync(id);
@@ -189,7 +179,7 @@ public class SolicitacaoController : ControllerBase
         {
             return NotFound();
         }
-        if (!RegrasAcesso.PodeValidarConflito(usuario, solicitacao.Colaborador.Id, solicitacao.Coordenador.Id))
+        if (!RegrasAcesso.PodeValidarConflito(usuario, solicitacao.Colaborador.Id, solicitacao.Supervisor.Id))
         {
             throw new AcessoNegadoException();
         }
@@ -201,15 +191,5 @@ public class SolicitacaoController : ControllerBase
         }
 
         return Ok(resultado);
-    }
-
-    private static bool AlteraSomenteStatus(SolicitacaoResponseDto atual, SolicitacaoUpdateDto dto)
-    {
-        var periodosAtuais = atual.Periodos.Select(p => p.Id).Order();
-        var periodosNovos = dto.Periodos.Select(p => p.Id).Distinct().Order();
-        return dto.Colaborador?.Id == atual.Colaborador.Id
-            && dto.Coordenador?.Id == atual.Coordenador.Id
-            && periodosAtuais.SequenceEqual(periodosNovos)
-            && (dto.Abono is null || dto.Abono == atual.Abono);
     }
 }

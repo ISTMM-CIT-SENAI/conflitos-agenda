@@ -28,7 +28,7 @@ public class AppDbContext : DbContext
             .WithMany()
             .UsingEntity("ProjetoPessoaCritica");
 
-        // Colaborador e Coordenador apontam para a mesma tabela: em cascata, o SQL Server
+        // Colaborador e Supervisor apontam para a mesma tabela: em cascata, o SQL Server
         // acusa múltiplos caminhos de exclusão. Corresponde à migration ConfigureSolicitacaoDeleteBehavior.
         modelBuilder.Entity<Solicitacao>()
             .HasOne(solicitacao => solicitacao.Colaborador)
@@ -36,7 +36,7 @@ public class AppDbContext : DbContext
             .OnDelete(DeleteBehavior.NoAction);
 
         modelBuilder.Entity<Solicitacao>()
-            .HasOne(solicitacao => solicitacao.Coordenador)
+            .HasOne(solicitacao => solicitacao.Supervisor)
             .WithMany()
             .OnDelete(DeleteBehavior.NoAction);
 
@@ -46,6 +46,13 @@ public class AppDbContext : DbContext
             .HasForeignKey(solicitacao => solicitacao.DecididaPorId)
             .OnDelete(DeleteBehavior.NoAction);
         modelBuilder.Entity<Solicitacao>().Ignore(solicitacao => solicitacao.EstaDecidida);
+
+        // Ao excluir um supervisor, quem respondia a ele fica sem "Responde a".
+        modelBuilder.Entity<Colaborador>()
+            .HasOne(colaborador => colaborador.RespondeA)
+            .WithMany()
+            .HasForeignKey(colaborador => colaborador.RespondeAId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Nome completo é o único identificador do Colaborador: único, sem diferenciar maiúsculas.
         modelBuilder.Entity<Colaborador>()

@@ -38,7 +38,7 @@ public class ColaboradorController : ControllerBase
         return Ok(colaboradores.Select(c => new ColaboradorResponseDto(c)));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpPost]
     public async Task<IActionResult> Add(ColaboradorInsertionDto dto)
     {
@@ -52,7 +52,7 @@ public class ColaboradorController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = novoColaborador.Id }, new ColaboradorResponseDto(novoColaborador));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, ColaboradorUpdateDto dto)
     {
@@ -66,7 +66,7 @@ public class ColaboradorController : ControllerBase
         return Ok(new ColaboradorResponseDto(colaboradorAtualizado));
     }
 
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
@@ -80,9 +80,9 @@ public class ColaboradorController : ControllerBase
         await _colaboradorService.DeleteAsync(id);
         return NoContent();
     }
-    [Authorize(Policy = SessaoCookie.PoliticaAdministrador)]
-    [HttpPut("{id}/coordinator")]
-    public async Task<IActionResult> TornarCoordenador(int id, ColaboradorUpdateDto dto)
+    [Authorize(Policy = SessaoCookie.PoliticaCoordenador)]
+    [HttpPut("{id}/supervisor")]
+    public async Task<IActionResult> TornarSupervisor(int id, ColaboradorUpdateDto dto)
     {
         var colaborador = await _colaboradorService.GetByIdAsync(id);
 
@@ -91,11 +91,11 @@ public class ColaboradorController : ControllerBase
             return NotFound();
         }
 
-        var resultado = await _colaboradorService.TornarCoordenadorAsync(id, dto);
+        var resultado = await _colaboradorService.TornarSupervisorAsync(id, dto);
 
         if (resultado is null)
         {
-            return BadRequest("Não foi possível tornar o colaborador um coordenador.");
+            return BadRequest("Não foi possível tornar o colaborador um supervisor.");
         }
 
         return Ok(new ColaboradorResponseDto(resultado));

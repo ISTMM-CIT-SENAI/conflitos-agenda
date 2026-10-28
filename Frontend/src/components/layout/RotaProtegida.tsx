@@ -2,7 +2,7 @@ import { Alert, Box, Button, CircularProgress } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Navigate, Outlet, Link as RouterLink, useLocation } from 'react-router-dom';
 import { useSessao } from '@/app/providers/useSessao';
-import { ehAdministrador } from '@/domain/acesso';
+import { ehCoordenador } from '@/domain/acesso';
 
 function Carregando() {
   return (
@@ -33,10 +33,10 @@ export function RotaComSessao() {
   return <Outlet />;
 }
 
-/** Conteúdo exclusivo do Administrador. */
-export function SomenteAdministrador({ children }: { children?: ReactNode }) {
+/** Conteúdo exclusivo do Coordenador. */
+export function SomenteCoordenador({ children }: { children?: ReactNode }) {
   const { usuario } = useSessao();
-  if (!usuario || !ehAdministrador(usuario)) {
+  if (!usuario || !ehCoordenador(usuario)) {
     return (
       <Alert
         severity="warning"
@@ -46,7 +46,7 @@ export function SomenteAdministrador({ children }: { children?: ReactNode }) {
           </Button>
         }
       >
-        Esta área é exclusiva do administrador.
+        Esta área é exclusiva do coordenador.
       </Alert>
     );
   }
