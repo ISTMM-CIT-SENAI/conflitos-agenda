@@ -332,6 +332,8 @@ A lista mostra só as solicitações que você pode ver (veja a [seção 3](#3-n
 
 **Indicadores** na lista: **Abono**, **Pessoa crítica** e o ícone ❗ vermelho para solicitações que violam alguma regra. Passe o mouse sobre o ícone para ver o motivo.
 
+**Exportar CSV** *(coordenador)*: baixa as solicitações da lista, com os filtros aplicados e as mesmas colunas da tabela, num arquivo que abre direto no Excel. Para salvar como planilha do Excel, use **Arquivo > Salvar como > Pasta de Trabalho do Excel (.xlsx)**.
+
 ### 10.2 Criar uma solicitação
 
 Você pode pedir as férias **em partes**: por exemplo, 15 dias agora e os outros 15 quando souber a data. As regras da CLT valem para o **ano**, somando todas as suas solicitações não recusadas daquele ano (conta o ano do primeiro dia de férias de cada uma):
