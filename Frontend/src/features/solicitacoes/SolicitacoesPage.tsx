@@ -2,6 +2,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineOutlined';
+import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import FilterAltOffOutlinedIcon from '@mui/icons-material/FilterAltOffOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -17,7 +18,7 @@ import {
   TextField,
   Tooltip,
 } from '@mui/material';
-import { GridActionsCellItem, type GridColDef } from '@mui/x-data-grid';
+import { GridActionsCellItem, useGridApiRef, type GridColDef } from '@mui/x-data-grid';
 import { useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import { useServicos } from '@/app/providers/useServicos';
@@ -36,7 +37,7 @@ import { intervaloDoPeriodo, seSobrepoem } from '@/domain/validation/periodo';
 import { violacoesDaSolicitacao } from '@/domain/validation/solicitacao';
 import { useColaboradores, useMutacao, useSolicitacoes } from '@/hooks/useDados';
 import { useFiltrosUrl } from '@/hooks/useFiltrosUrl';
-import { formatarDataHora, isDataISO, somarDias } from '@/lib/datas';
+import { formatarDataHora, hojeISO, isDataISO, somarDias } from '@/lib/datas';
 import { contemTexto } from '@/lib/texto';
 import { descreverPeriodo } from '../periodos/formatacao';
 
@@ -84,6 +85,7 @@ export function SolicitacoesPage() {
     );
   }, [solicitacoes.data, busca, statusFiltro, colaboradorId, de, ate]);
 
+  const tabela = useGridApiRef();
   const colunas: GridColDef<Solicitacao>[] = [
     {
       field: 'id',
@@ -111,6 +113,8 @@ export function SolicitacoesPage() {
       headerName: 'Indicadores',
       width: 190,
       sortable: false,
+      // Texto usado na exportação CSV; na tela, os chips abaixo.
+      valueGetter: (_, row) => [row.abono && 'Abono', row.isPessoaCritica && 'Pessoa crítica'].filter(Boolean).join(', '),
       renderCell: ({ row }) => (
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', height: '100%' }}>
           {row.abono && <Chip label="Abono" size="small" color="secondary" variant="outlined" />}
@@ -122,6 +126,7 @@ export function SolicitacoesPage() {
       field: 'status',
       headerName: 'Status',
       width: 210,
+      valueFormatter: (_, row) => ROTULO_STATUS[row.status] + (violacoesDaSolicitacao(row).length > 0 ? ' (viola regras)' : ''),
       renderCell: ({ row }) => {
         const violacoes = violacoesDaSolicitacao(row);
         return (
@@ -180,9 +185,24 @@ export function SolicitacoesPage() {
         titulo="Solicitações"
         subtitulo="Pedidos de ausência aguardando ou já analisados pelos supervisores."
         acoes={
-          <Button component={RouterLink} to="/solicitacoes/nova" variant="contained" startIcon={<AddIcon />}>
-            Nova solicitação
-          </Button>
+          <Stack direction="row" spacing={1}>
+            {ehCoordenador(usuario) && (
+              <Button
+                variant="outlined"
+                startIcon={<FileDownloadOutlinedIcon />}
+                disabled={linhas.length === 0}
+                // Separador ";" e BOM: o Excel em português abre com colunas e acentos certos.
+                onClick={() =>
+                  tabela.current?.exportDataAsCsv({ delimiter: ';', utf8WithBom: true, fileName: `solicitacoes-${hojeISO()}` })
+                }
+              >
+                Exportar CSV
+              </Button>
+            )}
+            <Button component={RouterLink} to="/solicitacoes/nova" variant="contained" startIcon={<AddIcon />}>
+              Nova solicitação
+            </Button>
+          </Stack>
         }
       />
 
@@ -260,6 +280,7 @@ export function SolicitacoesPage() {
         }
       >
         <TabelaDados
+          apiRef={tabela}
           rows={linhas}
           columns={colunas}
           getRowHeight={() => 'auto'}
